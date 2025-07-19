@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatterBox - Connect & Chat</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .chat-container {
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .chat-bubble {
+            max-width: 80%;
+            padding: 10px 12px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            animation: fadeIn 0.3s ease-in;
+            font-size: 0.875rem;
+        }
+        .chat-bubble.user {
+            background: linear-gradient(to right, #3b82f6, #60a5fa);
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+        .chat-bubble.bot {
+            background: #f3f4f6;
+            color: #1f2937;
+            margin-right: auto;
+            border-bottom-left-radius: 4px;
+        }
+        .chat-bubble.event {
+            background: #e5e7eb;
+            color: #6b7280;
+            text-align: center;
+            margin-left: auto;
+            margin-right: auto;
+            border-radius: 12px;
+            font-style: italic;
+            font-size: 0.75rem;
+        }
+        .timestamp {
+            font-size: 0.65rem;
+            color: #9ca3af;
+            margin-top: 4px;
+            text-align: right;
+        }
+        .chat-bubble.bot .timestamp {
+            text-align: left;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .theme-toggle, .emoji-toggle, .file-upload {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .dark .chat-container { border-color: #4b5563; }
+        .dark .bg-gray-100 { background-color: #1f2937; }
+        .dark .bg-white { background-color: #374151; }
+        .dark .chat-bubble.bot { background: #4b5563; color: #e5e7eb; }
+        .dark .chat-bubble.event { background: #4b5563; color: #d1d5db; }
+        .dark .timestamp { color: #d1d5db; }
+        .avatar {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            font-weight: bold;
+            color: white;
+            margin-right: 8px;
+            font-size: 0.75rem;
+        }
+        .emoji-picker-container {
+            position: absolute;
+            bottom: 100%;
+            right: 0;
+            z-index: 10;
+            display: none;
+        }
+        .emoji-picker-container.active {
+            display: block;
+        }
+        .typing-indicator {
+            font-size: 0.75rem;
+            color: #6b7280;
+            padding: 0 1rem 0.5rem;
+            display: none;
+        }
+        .typing-indicator.active {
+            display: block;
+        }
+        .chat-image {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-top: 4px;
+        }
+        .header {
+            background: linear-gradient(to right, #3b82f6, #60a5fa);
+            color: white;
+            padding: 0.75rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .dark .header {
+            background: linear-gradient(to right, #1e3a8a, #3b82f6);
+        }
+        @media (max-width: 640px) { /* sm breakpoint */
+            .chat-bubble { font-size: 0.75rem; padding: 6px 8px; }
+            .avatar { width: 24px; height: 24px; font-size: 0.7rem; }
+            .timestamp { font-size: 0.6rem; }
+            .header { padding: 0.5rem 0.75rem; }
+            #message { font-size: 0.875rem; padding: 0.25rem; }
+            .emoji-toggle, .file-upload { width: 2rem; height: 2rem; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen w-screen flex flex-col overflow-hidden">
+<noscript>
+    <h2 class="text-center text-red-500 mt-8">Sorry! Your browser doesn't support JavaScript</h2>
+</noscript>
+
+<!-- Username Page -->
+<div id="username-page" class="flex items-center justify-center h-full w-full p-4">
+    <div class="bg-white shadow-lg rounded-lg w-full max-w-md p-6 border border-gray-300 transform transition-all hover:scale-105">
+        <div class="flex items-center justify-center mb-4">
+            <svg class="w-8 h-8 mr-2 text-blue-600 hover:text-blue-800 transition-colors" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+            </svg>
+            <h1 class="text-2xl font-bold text-gray-800">ChatterBox</h1>
+        </div>
+        <form id="usernameForm" name="usernameForm" class="space-y-4">
+            <div>
+                <input
+                        type="text"
+                        id="name"
+                        placeholder="Enter your username"
+                        autocomplete="off"
+                        aria-label="Username"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                        required
+                />
+            </div>
+            <div>
+                <button
+                        type="submit"
+                        class="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition transform hover:scale-105"
+                >
+                    Start Chatting
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Chat Page -->
+<div id="chat-page" class="hidden h-full w-full flex flex-col">
+    <div class="chat-container h-full w-full flex flex-col">
+        <div class="header">
+            <div class="flex items-center">
+                <button id="back-button" class="mr-2 text-white hover:text-gray-200 transition-colors" aria-label="Back to username page">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                </button>
+                <svg class="w-6 h-6 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+                </svg>
+                <h2 class="text-lg font-semibold">ChatterBox</h2>
+            </div>
+            <button id="theme-toggle" class="theme-toggle text-white hover:text-gray-200 transition-colors" aria-label="Toggle theme">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+                </svg>
+            </button>
+        </div>
+        <div class="connecting hidden text-center text-gray-500 py-2">
+            <div class="spinner"></div>
+            <span>Connecting...</span>
+        </div>
+        <ul id="messageArea" class="flex-1 overflow-y-auto p-3 space-y-2" aria-live="polite"></ul>
+        <div id="typing-indicator" class="typing-indicator">Someone is typing...</div>
+        <form id="messageForm" name="messageForm" class="p-3 border-t border-gray-300 relative">
+            <div class="flex items-center space-x-2">
+                <div id="user-avatar" class="avatar" style="background-color: #2196F3;">U</div>
+                <input
+                        type="text"
+                        id="message"
+                        placeholder="Type a message..."
+                        autocomplete="off"
+                        aria-label="Chat message"
+                        class="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                        required
+                />
+                <button type="button" id="emoji-toggle" class="emoji-toggle text-gray-500 hover:text-gray-700" aria-label="Open emoji picker">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </button>
+                <label class="file-upload text-gray-500 hover:text-gray-700">
+                    <input type="file" id="file-input" accept="image/png,image/jpg,image/jpeg,image/gif" class="hidden" aria-label="Upload image"/>
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 002.828 2.828l6.586-6.586M12 3v6m0 0l-3-3m3 3l3-3"/>
+                    </svg>
+                </label>
+                <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition transform hover:scale-105">
+                    Send
+                </button>
+            </div>
+            <div id="emoji-picker" class="emoji-picker-container"></div>
+        </form>
+    </div>
+</div>
+
+<!-- Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/emoji-mart@latest/dist/browser.js"></script>
+<script>
+    'use strict';
+
+    var usernamePage = document.querySelector('#username-page');
+    var chatPage = document.querySelector('#chat-page');
+    var usernameForm = document.querySelector('#usernameForm');
+    var messageForm = document.querySelector('#messageForm');
+    var messageInput = document.querySelector('#message');
+    var fileInput = document.querySelector('#file-input');
+    var messageArea = document.querySelector('#messageArea');
+    var connectingElement = document.querySelector('.connecting');
+    var userAvatar = document.querySelector('#user-avatar');
+    var emojiToggle = document.querySelector('#emoji-toggle');
+    var emojiPickerContainer = document.querySelector('#emoji-picker');
+    var typingIndicator = document.querySelector('#typing-indicator');
+    var backButton = document.querySelector('#back-button');
+
+    var stompClient = null;
+    var username = null;
+    var typingTimeout = null;
+    var typingUsers = new Set();
+
+    var colors = [
+        '#2196F3', '#32c787', '#00BCD4', '#ff5652',
+        '#ffc107', '#ff85af', '#FF9800', '#39bbb0'
+    ];
+
+    // Initialize Emoji Picker
+    const pickerOptions = {
+        onEmojiSelect: (emoji) => {
+            messageInput.value += emoji.native;
+            messageInput.focus();
+            emojiPickerContainer.classList.remove('active');
+        },
+        theme: document.body.classList.contains('dark') ? 'dark' : 'light'
+    };
+    const picker = new EmojiMart.Picker(pickerOptions);
+    emojiPickerContainer.appendChild(picker);
+
+    // Toggle Emoji Picker
+    emojiToggle.addEventListener('click', () => {
+        emojiPickerContainer.classList.toggle('active');
+    });
+
+    // Back Button Functionality
+    backButton.addEventListener('click', () => {
+        if (stompClient && stompClient.connected) {
+            stompClient.disconnect();
+        }
+        chatPage.classList.add('hidden');
+        usernamePage.classList.remove('hidden');
+        messageArea.innerHTML = '';
+        typingUsers.clear();
+        updateTypingIndicator();
+    });
+
+    // Theme Toggle Functionality
+    document.getElementById('theme-toggle').addEventListener('click', () => {
+        document.body.classList.toggle('dark');
+        const icon = document.getElementById('theme-toggle').querySelector('svg');
+        icon.innerHTML = document.body.classList.contains('dark')
+            ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />'
+            : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />';
+        picker.setAttribute('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+    });
+
+    function getAvatarColor(messageSender) {
+        var hash = 0;
+        for (var i = 0; i < messageSender.length; i++) {
+            hash = 31 * hash + messageSender.charCodeAt(i);
+        }
+        var index = Math.abs(hash % colors.length);
+        return colors[index];
+    }
+
+    function formatTimestamp(timestamp) {
+        const date = new Date(timestamp);
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function connect(event) {
+        username = document.querySelector('#name').value.trim();
+        if (username) {
+            usernamePage.classList.add('hidden');
+            chatPage.classList.remove('hidden');
+            connectingElement.classList.remove('hidden');
+
+            userAvatar.style.backgroundColor = getAvatarColor(username);
+            userAvatar.textContent = username[0].toUpperCase();
+
+            var socket = new SockJS('/ws');
+            stompClient = Stomp.over(socket);
+            stompClient.connect({}, onConnected, onError);
+        }
+        event.preventDefault();
+    }
+
+    function onConnected() {
+        stompClient.subscribe('/topic/public', onMessageReceived);
+        stompClient.send("/app/chat.addUser",
+            {},
+            JSON.stringify({ sender: username, type: 'JOIN' })
+        );
+        connectingElement.classList.add('hidden');
+    }
+
+    function onError(error) {
+        connectingElement.innerHTML = '<span>Could not connect to WebSocket server. Please refresh this page to try again!</span>';
+        connectingElement.style.color = 'red';
+        connectingElement.classList.remove('hidden');
+    }
+
+    function sendMessage(event) {
+        var messageContent = messageInput.value.trim();
+        if (messageContent && stompClient) {
+            var chatMessage = {
+                sender: username,
+                content: messageContent,
+                type: 'CHAT'
+            };
+            stompClient.send("/app/chat.sendMessage", {}, JSON.stringify(chatMessage));
+            messageInput.value = '';
+            clearTyping();
+        }
+        event.preventDefault();
+    }
+
+    function sendFile(file) {
+        if (file && stompClient) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const chatMessage = {
+                    sender: username,
+                    fileContent: e.target.result.split(',')[1], // Base64 data
+                    fileType: file.type,
+                    type: 'FILE'
+                };
+                stompClient.send("/app/chat.sendFile", {}, JSON.stringify(chatMessage));
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    function sendTyping() {
+        if (stompClient && stompClient.connected) {
+            stompClient.send("/app/chat.typing",
+                {},
+                JSON.stringify({ sender: username, type: 'TYPING' })
+            );
+        }
+    }
+
+    function clearTyping() {
+        if (typingTimeout) {
+            clearTimeout(typingTimeout);
+            typingTimeout = null;
+        }
+        typingUsers.delete(username);
+        updateTypingIndicator();
+    }
+
+    function updateTypingIndicator() {
+        if (typingUsers.size > 0) {
+            const users = Array.from(typingUsers).join(', ');
+            typingIndicator.textContent = `${users} ${typingUsers.size > 1 ? 'are' : 'is'} typing...`;
+            typingIndicator.classList.add('active');
+        } else {
+            typingIndicator.classList.remove('active');
+        }
+    }
+
+    function onMessageReceived(payload) {
+        var message = JSON.parse(payload.body);
+        var messageElement = document.createElement('li');
+
+        if (message.type === 'JOIN' || message.type === 'LEAVE') {
+            messageElement.classList.add('chat-bubble', 'event');
+            message.content = message.type === 'JOIN' ? `${message.sender} joined!` : `${message.sender} left!`;
+            var textElement = document.createElement('p');
+            textElement.textContent = message.content;
+            messageElement.appendChild(textElement);
+        } else if (message.type === 'TYPING') {
+            if (message.sender !== username) {
+                typingUsers.add(message.sender);
+                updateTypingIndicator();
+                if (typingTimeout) clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => {
+                    typingUsers.delete(message.sender);
+                    updateTypingIndicator();
+                }, 5000);
+            }
+        } else {
+            messageElement.classList.add('chat-bubble', message.sender === username ? 'user' : 'bot');
+            var avatarElement = document.createElement('span');
+            avatarElement.className = 'avatar';
+            avatarElement.style.backgroundColor = getAvatarColor(message.sender);
+            avatarElement.textContent = message.sender[0].toUpperCase();
+
+            var usernameElement = document.createElement('span');
+            usernameElement.className = 'font-semibold mr-2';
+            usernameElement.textContent = message.sender;
+
+            var contentWrapper = document.createElement('div');
+            contentWrapper.className = 'flex items-center';
+            contentWrapper.appendChild(avatarElement);
+            contentWrapper.appendChild(usernameElement);
+
+            var textElement = document.createElement('p');
+            if (message.type === 'CHAT') {
+                textElement.textContent = message.content;
+            } else if (message.type === 'FILE') {
+                var imgElement = document.createElement('img');
+                imgElement.src = `data:${message.fileType};base64,${message.fileContent}`;
+                imgElement.className = 'chat-image';
+                imgElement.alt = 'Shared image';
+                textElement.appendChild(imgElement);
+            }
+
+            var timestampElement = document.createElement('div');
+            timestampElement.className = 'timestamp';
+            timestampElement.textContent = formatTimestamp(message.timestamp);
+
+            messageElement.appendChild(contentWrapper);
+            messageElement.appendChild(textElement);
+            if (message.type !== 'TYPING') {
+                messageElement.appendChild(timestampElement);
+            }
+        }
+
+        if (message.type !== 'TYPING') {
+            messageArea.appendChild(messageElement);
+            messageArea.scrollTop = messageArea.scrollHeight;
+        }
+    }
+
+    // Typing Detection
+    messageInput.addEventListener('input', () => {
+        if (messageInput.value.trim() && !typingTimeout) {
+            sendTyping();
+            typingTimeout = setTimeout(clearTyping, 5000);
+        }
+    });
+
+    // File Upload Handling
+    fileInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file && file.size <= 5 * 1024 * 1024) { // 5MB limit
+            sendFile(file);
+        } else if (file) {
+            alert('File size exceeds 5MB limit.');
+        }
+        fileInput.value = '';
+    });
+
+    usernameForm.addEventListener('submit', connect, true);
+    messageForm.addEventListener('submit', sendMessage, true);
+</script>
+</body>
+</html>
