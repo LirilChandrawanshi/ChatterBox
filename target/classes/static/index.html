@@ -2,15 +2,19 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ChatterBox - Connect & Chat</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
+        body {
+            overscroll-behavior: none; /* Prevent pull-to-refresh issues */
+        }
         .chat-container {
             border: 1px solid #e5e7eb;
             border-radius: 0.5rem;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             overflow: hidden;
+            height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
         }
         .chat-bubble {
             max-width: 80%;
@@ -71,6 +75,7 @@
         .theme-toggle, .emoji-toggle, .file-upload {
             cursor: pointer;
             transition: all 0.3s ease;
+            touch-action: manipulation; /* Prevent zoom on double-tap */
         }
         .dark .chat-container { border-color: #4b5563; }
         .dark .bg-gray-100 { background-color: #1f2937; }
@@ -92,10 +97,12 @@
         }
         .emoji-picker-container {
             position: absolute;
-            bottom: 100%;
-            right: 0;
+            bottom: calc(100% + 10px);
+            right: 10px;
             z-index: 10;
             display: none;
+            max-height: 200px;
+            overflow-y: auto;
         }
         .emoji-picker-container.active {
             display: block;
@@ -125,23 +132,41 @@
         .dark .header {
             background: linear-gradient(to right, #1e3a8a, #3b82f6);
         }
-        @media (max-width: 640px) { /* sm breakpoint */
-            .chat-bubble { font-size: 0.75rem; padding: 6px 8px; }
+        .message-form {
+            position: relative;
+            z-index: 1;
+            background: #fff;
+        }
+        .dark .message-form {
+            background: #374151;
+        }
+        @media (max-width: 640px) {
+            .chat-bubble { font-size: 0.75rem; padding: 8px 10px; }
             .avatar { width: 24px; height: 24px; font-size: 0.7rem; }
             .timestamp { font-size: 0.6rem; }
             .header { padding: 0.5rem 0.75rem; }
-            #message { font-size: 0.875rem; padding: 0.25rem; }
+            #message {
+                font-size: 0.875rem;
+                padding: 0.5rem;
+                line-height: 1.2;
+            }
             .emoji-toggle, .file-upload { width: 2rem; height: 2rem; }
+            .chat-container {
+                height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+            }
+            .message-form {
+                padding-bottom: env(safe-area-inset-bottom);
+            }
         }
     </style>
 </head>
-<body class="bg-gray-100 h-screen w-screen flex flex-col overflow-hidden">
+<body class="bg-gray-100 flex flex-col overflow-hidden">
 <noscript>
     <h2 class="text-center text-red-500 mt-8">Sorry! Your browser doesn't support JavaScript</h2>
 </noscript>
 
 <!-- Username Page -->
-<div id="username-page" class="flex items-center justify-center h-full w-full p-4">
+<div id="username-page" class="flex items-center justify-center min-h-[100dvh] w-full p-4">
     <div class="bg-white shadow-lg rounded-lg w-full max-w-md p-6 border border-gray-300 transform transition-all hover:scale-105">
         <div class="flex items-center justify-center mb-4">
             <svg class="w-8 h-8 mr-2 text-blue-600 hover:text-blue-800 transition-colors" fill="currentColor" viewBox="0 0 24 24">
@@ -174,8 +199,8 @@
 </div>
 
 <!-- Chat Page -->
-<div id="chat-page" class="hidden h-full w-full flex flex-col">
-    <div class="chat-container h-full w-full flex flex-col">
+<div id="chat-page" class="hidden flex flex-col min-h-[100dvh] w-full">
+    <div class="chat-container flex flex-col w-full">
         <div class="header">
             <div class="flex items-center">
                 <button id="back-button" class="mr-2 text-white hover:text-gray-200 transition-colors" aria-label="Back to username page">
@@ -200,7 +225,7 @@
         </div>
         <ul id="messageArea" class="flex-1 overflow-y-auto p-3 space-y-2" aria-live="polite"></ul>
         <div id="typing-indicator" class="typing-indicator">Someone is typing...</div>
-        <form id="messageForm" name="messageForm" class="p-3 border-t border-gray-300 relative">
+        <form id="messageForm" name="messageForm" class="p-3 border-t border-gray-300 message-form">
             <div class="flex items-center space-x-2">
                 <div id="user-avatar" class="avatar" style="background-color: #2196F3;">U</div>
                 <input
@@ -239,26 +264,26 @@
 <script>
     'use strict';
 
-    var usernamePage = document.querySelector('#username-page');
-    var chatPage = document.querySelector('#chat-page');
-    var usernameForm = document.querySelector('#usernameForm');
-    var messageForm = document.querySelector('#messageForm');
-    var messageInput = document.querySelector('#message');
-    var fileInput = document.querySelector('#file-input');
-    var messageArea = document.querySelector('#messageArea');
-    var connectingElement = document.querySelector('.connecting');
-    var userAvatar = document.querySelector('#user-avatar');
-    var emojiToggle = document.querySelector('#emoji-toggle');
-    var emojiPickerContainer = document.querySelector('#emoji-picker');
-    var typingIndicator = document.querySelector('#typing-indicator');
-    var backButton = document.querySelector('#back-button');
+    const usernamePage = document.querySelector('#username-page');
+    const chatPage = document.querySelector('#chat-page');
+    const usernameForm = document.querySelector('#usernameForm');
+    const messageForm = document.querySelector('#messageForm');
+    const messageInput = document.querySelector('#message');
+    const fileInput = document.querySelector('#file-input');
+    const messageArea = document.querySelector('#messageArea');
+    const connectingElement = document.querySelector('.connecting');
+    const userAvatar = document.querySelector('#user-avatar');
+    const emojiToggle = document.querySelector('#emoji-toggle');
+    const emojiPickerContainer = document.querySelector('#emoji-picker');
+    const typingIndicator = document.querySelector('#typing-indicator');
+    const backButton = document.querySelector('#back-button');
 
-    var stompClient = null;
-    var username = null;
-    var typingTimeout = null;
-    var typingUsers = new Set();
+    let stompClient = null;
+    let username = null;
+    let typingTimeout = null;
+    const typingUsers = new Set();
 
-    var colors = [
+    const colors = [
         '#2196F3', '#32c787', '#00BCD4', '#ff5652',
         '#ffc107', '#ff85af', '#FF9800', '#39bbb0'
     ];
@@ -278,6 +303,11 @@
     // Toggle Emoji Picker
     emojiToggle.addEventListener('click', () => {
         emojiPickerContainer.classList.toggle('active');
+        if (emojiPickerContainer.classList.contains('active')) {
+            messageInput.blur(); // Ensure keyboard is hidden when emoji picker is open
+        } else {
+            messageInput.focus();
+        }
     });
 
     // Back Button Functionality
@@ -303,11 +333,11 @@
     });
 
     function getAvatarColor(messageSender) {
-        var hash = 0;
-        for (var i = 0; i < messageSender.length; i++) {
+        let hash = 0;
+        for (let i = 0; i < messageSender.length; i++) {
             hash = 31 * hash + messageSender.charCodeAt(i);
         }
-        var index = Math.abs(hash % colors.length);
+        const index = Math.abs(hash % colors.length);
         return colors[index];
     }
 
@@ -326,7 +356,7 @@
             userAvatar.style.backgroundColor = getAvatarColor(username);
             userAvatar.textContent = username[0].toUpperCase();
 
-            var socket = new SockJS('/ws');
+            const socket = new SockJS('/ws');
             stompClient = Stomp.over(socket);
             stompClient.connect({}, onConnected, onError);
         }
@@ -340,6 +370,7 @@
             JSON.stringify({ sender: username, type: 'JOIN' })
         );
         connectingElement.classList.add('hidden');
+        messageInput.focus(); // Auto-focus input on connect
     }
 
     function onError(error) {
@@ -349,9 +380,9 @@
     }
 
     function sendMessage(event) {
-        var messageContent = messageInput.value.trim();
+        const messageContent = messageInput.value.trim();
         if (messageContent && stompClient) {
-            var chatMessage = {
+            const chatMessage = {
                 sender: username,
                 content: messageContent,
                 type: 'CHAT'
@@ -408,13 +439,13 @@
     }
 
     function onMessageReceived(payload) {
-        var message = JSON.parse(payload.body);
-        var messageElement = document.createElement('li');
+        const message = JSON.parse(payload.body);
+        const messageElement = document.createElement('li');
 
         if (message.type === 'JOIN' || message.type === 'LEAVE') {
             messageElement.classList.add('chat-bubble', 'event');
             message.content = message.type === 'JOIN' ? `${message.sender} joined!` : `${message.sender} left!`;
-            var textElement = document.createElement('p');
+            const textElement = document.createElement('p');
             textElement.textContent = message.content;
             messageElement.appendChild(textElement);
         } else if (message.type === 'TYPING') {
@@ -429,32 +460,32 @@
             }
         } else {
             messageElement.classList.add('chat-bubble', message.sender === username ? 'user' : 'bot');
-            var avatarElement = document.createElement('span');
+            const avatarElement = document.createElement('span');
             avatarElement.className = 'avatar';
             avatarElement.style.backgroundColor = getAvatarColor(message.sender);
             avatarElement.textContent = message.sender[0].toUpperCase();
 
-            var usernameElement = document.createElement('span');
+            const usernameElement = document.createElement('span');
             usernameElement.className = 'font-semibold mr-2';
             usernameElement.textContent = message.sender;
 
-            var contentWrapper = document.createElement('div');
+            const contentWrapper = document.createElement('div');
             contentWrapper.className = 'flex items-center';
             contentWrapper.appendChild(avatarElement);
             contentWrapper.appendChild(usernameElement);
 
-            var textElement = document.createElement('p');
+            const textElement = document.createElement('p');
             if (message.type === 'CHAT') {
                 textElement.textContent = message.content;
             } else if (message.type === 'FILE') {
-                var imgElement = document.createElement('img');
+                const imgElement = document.createElement('img');
                 imgElement.src = `data:${message.fileType};base64,${message.fileContent}`;
                 imgElement.className = 'chat-image';
                 imgElement.alt = 'Shared image';
                 textElement.appendChild(imgElement);
             }
 
-            var timestampElement = document.createElement('div');
+            const timestampElement = document.createElement('div');
             timestampElement.className = 'timestamp';
             timestampElement.textContent = formatTimestamp(message.timestamp);
 
@@ -479,6 +510,11 @@
         }
     });
 
+    // Ensure input focus on touch
+    messageInput.addEventListener('touchstart', () => {
+        messageInput.focus();
+    });
+
     // File Upload Handling
     fileInput.addEventListener('change', (event) => {
         const file = event.target.files[0];
@@ -488,6 +524,13 @@
             alert('File size exceeds 5MB limit.');
         }
         fileInput.value = '';
+    });
+
+    // Handle viewport resize for keyboard
+    window.addEventListener('resize', () => {
+        if (document.activeElement === messageInput) {
+            messageArea.scrollTop = messageArea.scrollHeight;
+        }
     });
 
     usernameForm.addEventListener('submit', connect, true);
