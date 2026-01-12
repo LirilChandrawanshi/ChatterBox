@@ -28,7 +28,7 @@ export default function Home() {
           </div>
           
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
+            <div className=" text-black">
               <input
                 type="text"
                 value={username}
