@@ -1,38 +1,76 @@
 apiVersion: apps/v1           # API version
 kind: Deployment              # Type of kubernetes resource
 metadata:
-  name: chat-server           # Name of the kubernetes resource
+  name: chatterbox            # Name of the kubernetes resource
   labels:                     # Labels that will be applied to this resource
-    app: chat-server
+    app: chatterbox
+    version: v1
 spec:
-  replicas: 1                 # No. of replicas/pods to run in this deployment
+  replicas: 2                 # No. of replicas/pods to run in this deployment
   selector:
-    matchLabels:              # The deployment applies to any pods mayching the specified labels
-      app: chat-server
+    matchLabels:              # The deployment applies to any pods matching the specified labels
+      app: chatterbox
   template:                   # Template for creating the pods in this deployment
     metadata:
       labels:                 # Labels that will be applied to each Pod in this deployment
-        app: chat-server
+        app: chatterbox
+        version: v1
     spec:                     # Spec for the containers that will be run in the Pods
       containers:
-      - name: chat-server
-        image: callicoder/spring-boot-websocket-chat-demo:0.0.1-SNAPSHOT
+      - name: chatterbox
+        # Replace 'yourusername' with your Docker Hub username
+        image: yourusername/chatterbox:0.0.1-SNAPSHOT
         imagePullPolicy: IfNotPresent
         ports:
           - name: http
             containerPort: 8080 # The port that the container exposes
+        # Environment variables
+        env:
+          - name: SPRING_PROFILES_ACTIVE
+            value: "production"
+        # Resource limits
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        # Liveness probe
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        # Readiness probe
+        readinessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
 ---
 apiVersion: v1                # API version
 kind: Service                 # Type of the kubernetes resource
 metadata:                     
-  name: chat-server           # Name of the kubernetes resource
+  name: chatterbox            # Name of the kubernetes resource
   labels:                     # Labels that will be applied to this resource
-    app: chat-server
+    app: chatterbox
 spec:                         
-  type: NodePort              # The service will be exposed by opening a Port on each node and proxying it. 
+  type: LoadBalancer          # The service will be exposed via a load balancer (use NodePort for local clusters)
   selector:
-    app: chat-server          # The service exposes Pods with label `app=polling-app-server`
+    app: chatterbox           # The service exposes Pods with label `app=chatterbox`
   ports:                      # Forward incoming connections on port 8080 to the target port 8080
   - name: http
     port: 8080
     targetPort: 8080
+    protocol: TCP
+  sessionAffinity: ClientIP   # Sticky sessions for WebSocket connections
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800   # 3 hours
