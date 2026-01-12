@@ -41,7 +41,7 @@ export default function Home() {
                 autoFocus
               />
             </div>
-            
+               
             <button
               type="submit"
               className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 rounded-lg hover:from-blue-600 hover:to-blue-700 transition transform hover:scale-105 font-semibold shadow-lg"
