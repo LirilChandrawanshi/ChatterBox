@@ -1,10 +1,13 @@
-import { Html, Head, Main, NextScript } from 'next/document'
+import { Html, Head, Main, NextScript } from "next/document";
 
 export default function Document() {
   return (
     <Html lang="en">
       <Head>
-        <meta name="description" content="ChatterBox - Real-time WebSocket Chat Application" />
+        <meta
+          name="description"
+          content="ChatterBox - Real-time WebSocket Chat Application"
+        />
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <body>
@@ -12,5 +15,5 @@ export default function Document() {
         <NextScript />
       </body>
     </Html>
-  )
+  );
 }
