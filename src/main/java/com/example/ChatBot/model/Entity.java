@@ -1,11 +1,27 @@
 package com.example.ChatBot.model;
 
+import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Size;
+
 public class Entity {
+    
+    @NotNull(message = "Message type is required")
     private MessageType type;
+    
+    @Size(max = 2000, message = "Content must not exceed 2000 characters")
     private String content;
+    
+    @NotBlank(message = "Sender name is required")
+    @Size(min = 2, max = 50, message = "Sender name must be between 2 and 50 characters")
     private String sender;
+    
+    @Size(max = 5242880, message = "File content must not exceed 5MB")
     private String fileContent;
+    
+    @Size(max = 100, message = "File type must not exceed 100 characters")
     private String fileType;
+    
     private long timestamp;
 
     public enum MessageType {
