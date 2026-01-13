@@ -36,8 +36,6 @@ export class WebSocketService {
       reconnectDelay: 5000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
-      // Increase max WebSocket frame size to support large file uploads
-      maxWebSocketFrameSize: 16 * 1024 * 1024, // 16MB
     })
 
     // On connect
