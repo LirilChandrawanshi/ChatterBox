@@ -114,10 +114,21 @@ export class WebSocketService {
         fileType: fileType,
         type: 'FILE',
       }
-      this.stompClient.publish({
-        destination: '/app/chat.sendFile',
-        body: JSON.stringify(fileMessage),
-      })
+      
+      const messageBody = JSON.stringify(fileMessage)
+      const messageSizeKB = (messageBody.length / 1024).toFixed(2)
+      console.log(`Sending file message: ${messageSizeKB}KB`)
+      
+      try {
+        this.stompClient.publish({
+          destination: '/app/chat.sendFile',
+          body: messageBody,
+        })
+        console.log('File sent successfully')
+      } catch (error) {
+        console.error('Error sending file:', error)
+        throw error
+      }
     }
   }
 

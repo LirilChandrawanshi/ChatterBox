@@ -16,7 +16,7 @@ public class Entity {
     @Size(min = 2, max = 50, message = "Sender name must be between 2 and 50 characters")
     private String sender;
     
-    @Size(max = 5242880, message = "File content must not exceed 5MB")
+    @Size(max = 10485760, message = "File content must not exceed 10MB (base64 encoded)")
     private String fileContent;
     
     @Size(max = 100, message = "File type must not exceed 100 characters")

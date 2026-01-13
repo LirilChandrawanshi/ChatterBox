@@ -59,9 +59,6 @@ public class ChatBotController {
         return chatMessage;
     }
 
-    /**
-     * Sanitize user input to prevent XSS attacks
-     */
     private String sanitizeInput(String input) {
         if (input == null) return null;
         return input.replaceAll("<", "&lt;")

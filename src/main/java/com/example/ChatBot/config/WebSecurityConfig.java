@@ -11,8 +11,15 @@ public class WebSecurityConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(@NonNull CorsRegistry registry) {
         registry.addMapping("/**")
-                // Allow all origins for development (change for production)
-                .allowedOriginPatterns("*")
+                // Allow localhost for development + free hosting platforms
+                .allowedOriginPatterns(
+                    "http://localhost:3000",
+                    "http://localhost:8080",
+                    "https://*.onrender.com",
+                    "https://*.vercel.app",
+                    "https://*.railway.app",
+                    "https://*.netlify.app"
+                )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .allowCredentials(true)
