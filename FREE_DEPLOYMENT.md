@@ -4,7 +4,17 @@ Deploy your app for FREE with free subdomains (no domain purchase needed!)
 
 ---
 
-## 🚀 Option 1: Render (100% Free - Recommended)
+## ⚠️ Important Note
+
+You need to deploy **Backend** and **Frontend** as **2 separate services** because:
+- Backend = Java/Spring Boot (needs Java runtime)
+- Frontend = Next.js (needs Node.js runtime)
+
+**Recommended**: Use **Render.com** for both - same platform, 2 services, 100% free!
+
+---
+
+## 🚀 Option 1: Render for BOTH (Easiest - Recommended)
 
 ### Step 1: Push to GitHub
 ```bash
