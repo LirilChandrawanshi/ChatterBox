@@ -325,7 +325,7 @@ export default function Chat() {
               value={inputMessage}
               onChange={(e) => handleInputChange(e.target.value)}
               placeholder="Type a message..."
-              className="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              className="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 text-black"
               disabled={!connected}
             />
 
