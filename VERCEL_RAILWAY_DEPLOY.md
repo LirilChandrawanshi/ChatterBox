@@ -25,8 +25,8 @@ This checklist gets the app live with **frontend on Vercel** and **backend on Ra
    - `SPRING_DATA_MONGODB_URI` = your MongoDB connection string (e.g. from Atlas)
 6. Deploy. When it’s up, open **Settings** → **Networking** → **Generate Domain** and copy the URL, e.g. `https://chatterbox-production-xxxx.up.railway.app`.
 
-**Backend URL** (save it): `https://YOUR-RAILWAY-SERVICE.up.railway.app`  
-**WebSocket URL**: `wss://YOUR-RAILWAY-SERVICE.up.railway.app/ws`
+**Backend URL** (save it): `https://chatterbox-production-b299.up.railway.app`  
+**WebSocket URL**: `wss://chatterbox-production-b299.up.railway.app/ws`
 
 ---
 
@@ -36,9 +36,8 @@ This checklist gets the app live with **frontend on Vercel** and **backend on Ra
 2. **Root Directory**: set to **`frontend`** (required for monorepo).
 3. **Framework Preset**: Next.js (auto-detected).
 4. **Environment variables** (Project Settings → Environment Variables):
-   - `NEXT_PUBLIC_API_URL` = `https://YOUR-RAILWAY-SERVICE.up.railway.app`
-   - `NEXT_PUBLIC_WS_URL` = `wss://YOUR-RAILWAY-SERVICE.up.railway.app/ws`
-   Use the exact Railway URL from step 1.
+   - `NEXT_PUBLIC_API_URL` = `https://chatterbox-production-b299.up.railway.app`
+   - `NEXT_PUBLIC_WS_URL` = `wss://chatterbox-production-b299.up.railway.app/ws`
 5. Deploy. Your app will be at e.g. `https://your-project.vercel.app`.
 
 ---
