@@ -1,6 +1,17 @@
 version: '3.8'
 
 services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7
+    container_name: chatterbox-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - chatterbox-network
+
   # Spring Boot Backend
   backend:
     build:
@@ -11,6 +22,9 @@ services:
       - "8080:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=production
+      - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/chatterbox
+    depends_on:
+      - mongodb
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
       interval: 30s
@@ -42,3 +56,5 @@ networks:
   chatterbox-network:
     driver: bridge
 
+volumes:
+  mongodb-data:

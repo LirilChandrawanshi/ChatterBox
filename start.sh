@@ -12,6 +12,12 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Load environment variables from .env if it exists
+if [ -f ".env" ]; then
+    echo -e "${BLUE}📋 Loading environment variables from .env${NC}"
+    export $(grep -v '^#' .env | xargs)
+fi
+
 # Check if frontend dependencies are installed
 if [ ! -d "frontend/node_modules" ]; then
     echo -e "${YELLOW}📦 Installing frontend dependencies...${NC}"

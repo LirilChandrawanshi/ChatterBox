@@ -1,6 +1,7 @@
 package com.example.ChatBot.controller;
 
 import com.example.ChatBot.model.Entity;
+import com.example.ChatBot.service.ChatService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -16,6 +17,12 @@ public class ChatBotController {
 
     private static final Logger logger = LoggerFactory.getLogger(ChatBotController.class);
 
+    private final ChatService chatService;
+
+    public ChatBotController(ChatService chatService) {
+        this.chatService = chatService;
+    }
+
     @MessageMapping("/chat.sendMessage")
     @SendTo("/topic/public")
     public Entity sendMessage(@Payload @Valid Entity chatMessage) {
@@ -27,6 +34,7 @@ public class ChatBotController {
         }
         
         chatMessage.setTimestamp(System.currentTimeMillis());
+        chatService.saveIfPersistable(chatMessage);
         return chatMessage;
     }
 
@@ -56,6 +64,7 @@ public class ChatBotController {
     public Entity sendFile(@Payload @Valid Entity chatMessage) {
         logger.info("File shared by {}: {}", chatMessage.getSender(), chatMessage.getFileType());
         chatMessage.setTimestamp(System.currentTimeMillis());
+        chatService.saveIfPersistable(chatMessage);
         return chatMessage;
     }
 

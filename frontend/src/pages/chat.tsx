@@ -39,6 +39,13 @@ export default function Chat() {
       }
     }
 
+    // Fetch message history from API
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+    fetch(`${apiUrl}/api/messages?limit=50`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((history: ChatMessage[]) => setMessages(history || []))
+      .catch(() => {});
+
     // Connect to WebSocket
     console.log("Connecting to WebSocket as:", username);
     wsService.connect(

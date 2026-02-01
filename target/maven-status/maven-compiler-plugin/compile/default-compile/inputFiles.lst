@@ -4,4 +4,8 @@
 /Users/macbook/Desktop/ChatterBox/src/main/java/com/example/ChatBot/ChatBotApplication.java
 /Users/macbook/Desktop/ChatterBox/src/main/java/com/example/ChatBot/config/WebSecurityConfig.java
 /Users/macbook/Desktop/ChatterBox/src/main/java/com/example/ChatBot/config/WebSocket.java
+/Users/macbook/Desktop/ChatterBox/src/main/java/com/example/ChatBot/model/ChatMessageDocument.java
+/Users/macbook/Desktop/ChatterBox/src/main/java/com/example/ChatBot/repository/ChatMessageRepository.java
 /Users/macbook/Desktop/ChatterBox/src/main/java/com/example/ChatBot/controller/ChatBotController.java
+/Users/macbook/Desktop/ChatterBox/src/main/java/com/example/ChatBot/controller/MessageHistoryController.java
+/Users/macbook/Desktop/ChatterBox/src/main/java/com/example/ChatBot/service/ChatService.java
