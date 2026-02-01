@@ -24,7 +24,16 @@ public class WebSocket implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(@NonNull StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns("*")  // Allow all origins for development
+                .setAllowedOriginPatterns(
+                        "http://localhost:3000",
+                        "http://localhost:8080",
+                        "http://192.168.*.*:*",
+                        "http://10.*.*.*:*",
+                        "https://*.vercel.app",
+                        "https://*.railway.app",
+                        "https://*.onrender.com",
+                        "https://*.netlify.app"
+                )
                 .withSockJS();
     }
 
