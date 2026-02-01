@@ -15,6 +15,8 @@ public class WebSecurityConfig implements WebMvcConfigurer {
                 .allowedOriginPatterns(
                     "http://localhost:3000",
                     "http://localhost:8080",
+                    "http://192.168.*.*:3000",
+                    "http://10.*.*.*:3000",
                     "https://*.onrender.com",
                     "https://*.vercel.app",
                     "https://*.railway.app",
