@@ -6,8 +6,6 @@ LABEL maintainer="chatterbox@example.com"
 LABEL description="ChatterBox - Real-time WebSocket Chat Application"
 LABEL version="0.0.1-SNAPSHOT"
 
-# Add a volume pointing to /tmp for Spring Boot temporary files
-VOLUME /tmp
 
 # Create a non-root user for security
 RUN addgroup -S spring && adduser -S spring -G spring
