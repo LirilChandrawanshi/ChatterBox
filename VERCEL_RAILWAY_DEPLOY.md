@@ -26,7 +26,7 @@ This checklist gets the app live with **frontend on Vercel** and **backend on Ra
 6. Deploy. When it’s up, open **Settings** → **Networking** → **Generate Domain** and copy the URL, e.g. `https://chatterbox-production-xxxx.up.railway.app`.
 
 **Backend URL** (save it): `https://chatterbox-production-2a2c.up.railway.app`  
-**WebSocket URL**: `wss://chatterbox-production-2a2c.up.railway.app/ws`
+**WebSocket URL** (use `https://` for SockJS; required when frontend is on HTTPS): `https://chatterbox-production-2a2c.up.railway.app/ws`
 
 ---
 
@@ -37,7 +37,7 @@ This checklist gets the app live with **frontend on Vercel** and **backend on Ra
 3. **Framework Preset**: Next.js (auto-detected).
 4. **Environment variables** (Project Settings → Environment Variables):
    - `NEXT_PUBLIC_API_URL` = `https://chatterbox-production-2a2c.up.railway.app`
-   - `NEXT_PUBLIC_WS_URL` = `wss://chatterbox-production-2a2c.up.railway.app/ws`
+   - `NEXT_PUBLIC_WS_URL` = `https://chatterbox-production-2a2c.up.railway.app/ws` (must be **https** so HTTPS pages can connect)
 5. Deploy. Your app will be at e.g. `https://your-project.vercel.app`.
 
 ---
@@ -67,10 +67,10 @@ This checklist gets the app live with **frontend on Vercel** and **backend on Ra
   Ensure `SPRING_DATA_MONGODB_URI` is set and valid. Check logs in Railway.
 
 - **Frontend can’t reach backend**  
-  Confirm `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_WS_URL` use the **exact** Railway URL (https / wss, no trailing slash except path).
+  Confirm `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_WS_URL` use the **exact** Railway URL with **https** (e.g. `https://...up.railway.app` and `https://...up.railway.app/ws`). Redeploy after changing env vars.
 
-- **WebSocket fails (CORS / mixed content)**  
-  Use `https` and `wss` in production. CORS already allows `*.vercel.app` and `*.railway.app` in `WebSecurityConfig.java`.
+- **"An insecure SockJS connection may not be initiated from a page loaded over HTTPS"**  
+  Your Vercel app (HTTPS) is trying to connect to `http://localhost:8080/ws` because `NEXT_PUBLIC_WS_URL` was not set (or not set before the last build). Fix: In Vercel → Project → **Settings** → **Environment Variables**, add `NEXT_PUBLIC_WS_URL` = `https://chatterbox-production-2a2c.up.railway.app/ws` (use **https**, not http). Then trigger a **new deployment** (env vars are baked in at build time).
 
 - **Build fails on Vercel**  
   Ensure **Root Directory** is `frontend` so `package.json` and `next.config.js` are used.

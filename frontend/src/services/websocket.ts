@@ -21,9 +21,17 @@ export class WebSocketService {
     this.username = username
     const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:8080/ws'
     
+    // Block mixed content: HTTPS page cannot connect to HTTP WebSocket
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:' && wsUrl.startsWith('http:')) {
+      const msg = 'WebSocket URL must use HTTPS in production. Set NEXT_PUBLIC_WS_URL to https://your-backend.up.railway.app/ws in Vercel → Environment Variables, then redeploy.'
+      console.error(msg)
+      onError({ message: msg })
+      return
+    }
+
     console.log('Creating WebSocket connection to:', wsUrl)
     console.log('Username:', username)
-    
+
     // Create STOMP client
     this.stompClient = new Client({
       webSocketFactory: () => {
