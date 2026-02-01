@@ -1,0 +1,11 @@
+# Railway deployment config for ChatterBox backend (Spring Boot)
+# Deploy this service with root directory = . (repo root)
+
+[build]
+builder = "nixpacks"
+buildCommand = "./mvnw clean package -DskipTests"
+
+[deploy]
+startCommand = "java -jar target/chatterbox-0.0.1-SNAPSHOT.jar"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
