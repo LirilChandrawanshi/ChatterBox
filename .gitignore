@@ -42,3 +42,6 @@ logs/
 ### Environment ###
 .env
 .env.local
+
+### Local config (secrets) - do not commit ###
+src/main/resources/application-local.properties
