@@ -1,4 +1,22 @@
-# Use Eclipse Temurin JDK 17 as base image (recommended for production)
+# Stage 1: Build the JAR with Maven (so the JAR exists when Render clones the repo)
+FROM eclipse-temurin:17-jdk-alpine AS builder
+
+WORKDIR /build
+
+# Copy Maven wrapper and pom first for better layer caching
+COPY mvnw .
+COPY .mvn .mvn
+COPY pom.xml .
+RUN chmod +x mvnw
+
+# Download dependencies (cached unless pom.xml changes)
+RUN ./mvnw dependency:go-offline -B
+
+# Copy source and build the JAR
+COPY src src
+RUN ./mvnw package -DskipTests -B
+
+# Stage 2: Runtime image (only the JAR + JRE)
 FROM eclipse-temurin:17-jre-alpine
 
 # Add metadata
@@ -11,14 +29,10 @@ LABEL version="0.0.1-SNAPSHOT"
 # Create a non-root user for security
 RUN addgroup -S spring && adduser -S spring -G spring
 
-# Set working directory
 WORKDIR /app
 
-# The application's jar file
-ARG JAR_FILE=target/chatterbox-0.0.1-SNAPSHOT.jar
-
-# Copy the application's jar to the container
-COPY ${JAR_FILE} app.jar
+# Copy the built JAR from the builder stage
+COPY --from=builder /build/target/chatterbox-0.0.1-SNAPSHOT.jar app.jar
 
 # Change ownership to non-root user
 RUN chown spring:spring app.jar
