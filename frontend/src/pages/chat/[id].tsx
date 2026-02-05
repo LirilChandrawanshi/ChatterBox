@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, FormEvent } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
-import { ArrowLeft, Paperclip, Smile, Send } from "lucide-react";
+import { ArrowLeft, Paperclip, Smile, Send, Check, CheckCheck } from "lucide-react";
 import { wsService, type ChatMessage } from "@/services/websocket";
 import {
   getMessages,
@@ -30,8 +30,13 @@ export default function ConversationPage() {
   const [otherMobile, setOtherMobile] = useState("");
   const [showEmoji, setShowEmoji] = useState(false);
   const [sendingFile, setSendingFile] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [readMessageIds, setReadMessageIds] = useState<Set<string>>(new Set());
   const messageAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const sendTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isTypingSentRef = useRef(false);
 
   useEffect(() => {
     if (!router.isReady || !myMobile || !convId) return;
@@ -44,6 +49,7 @@ export default function ConversationPage() {
     getMessages(convId, myMobile).then((list) =>
       setMessages(list as ChatMessage[])
     );
+    // Mark messages as read when opening chat (via WebSocket when connected)
   }, [router.isReady, myMobile, convId]);
 
   useEffect(() => {
@@ -54,6 +60,8 @@ export default function ConversationPage() {
         setConnected(true);
         setConnecting(false);
         setConnectionError("");
+        // Send read receipt via WebSocket when connected
+        wsService.sendReadReceipt(convId);
       },
       () => {
         setConnecting(false);
@@ -62,6 +70,28 @@ export default function ConversationPage() {
     );
     const handler = (message: ChatMessage) => {
       if (message.conversationId !== convId) return;
+
+      // Handle typing indicator
+      if (message.type === "TYPING" && message.sender !== myMobile) {
+        setIsTyping(true);
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = setTimeout(() => setIsTyping(false), 3000);
+        return;
+      }
+
+      // Handle read receipt
+      if (message.type === "READ" && message.sender !== myMobile) {
+        // Mark all messages as read by other user
+        setReadMessageIds((prev) => {
+          const next = new Set(prev);
+          messages.forEach((m) => {
+            if (m.sender === myMobile && m.id) next.add(m.id);
+          });
+          return next;
+        });
+        return;
+      }
+
       if (message.type === "DELETED" && message.messageIds?.length) {
         setMessages((prev) =>
           prev.filter((m) => !message.messageIds!.includes(m.id!))
@@ -70,11 +100,15 @@ export default function ConversationPage() {
       }
       if (message.type === "CHAT" || message.type === "FILE") {
         setMessages((prev) => [...prev, message]);
+        // If message from other, mark as read via WebSocket
+        if (message.sender !== myMobile && connected) {
+          wsService.sendReadReceipt(convId);
+        }
       }
     };
     wsService.onMessage(handler);
     return () => wsService.disconnect();
-  }, [myMobile, convId]);
+  }, [myMobile, convId, messages]);
 
   useEffect(() => {
     if (messageAreaRef.current) {
@@ -88,10 +122,24 @@ export default function ConversationPage() {
     if (!text || !convId || !myMobile || !connected) return;
     setInputMessage("");
     setShowEmoji(false);
+    isTypingSentRef.current = false;
     try {
       await apiSendMessage(convId, myMobile, text);
     } catch {
       setInputMessage(text);
+    }
+  };
+
+  const handleInputChange = (value: string) => {
+    setInputMessage(value);
+    // Send typing indicator via WebSocket (throttled)
+    if (value.trim() && connected && !isTypingSentRef.current) {
+      wsService.sendTypingToConversation(convId);
+      isTypingSentRef.current = true;
+      if (sendTypingTimeoutRef.current) clearTimeout(sendTypingTimeoutRef.current);
+      sendTypingTimeoutRef.current = setTimeout(() => {
+        isTypingSentRef.current = false;
+      }, 3000);
     }
   };
 
@@ -172,7 +220,13 @@ export default function ConversationPage() {
           </div>
           <div className="flex-1 min-w-0">
             <h1 className="text-white font-semibold truncate text-lg">{otherName || otherMobile || "Chat"}</h1>
-            <p className="text-xs text-[#8696a0]">{otherMobile || ""}</p>
+            <p className="text-xs text-[#8696a0]">
+              {isTyping ? (
+                <span className="text-[#00a884] animate-pulse">typing...</span>
+              ) : (
+                otherMobile || ""
+              )}
+            </p>
           </div>
         </header>
 
@@ -196,17 +250,17 @@ export default function ConversationPage() {
             .filter((m) => m.type === "CHAT" || m.type === "FILE")
             .map((msg, index) => {
               const isOwn = msg.sender === myMobile;
+              const isRead = msg.id && readMessageIds.has(msg.id);
               return (
                 <div
                   key={msg.id ?? `m-${index}`}
                   className={`flex ${isOwn ? "justify-end" : "justify-start"} animate-message-in`}
                 >
                   <div
-                    className={`max-w-[82%] rounded-2xl px-4 py-2.5 shadow-lg ${
-                      isOwn
-                        ? "bg-gradient-to-br from-[#005c4b] to-[#004d40] text-white rounded-br-md"
-                        : "bg-[#1f2c34] text-[#e9edef] rounded-bl-md border border-[#2a3942]/50"
-                    }`}
+                    className={`max-w-[82%] rounded-2xl px-4 py-2.5 shadow-lg ${isOwn
+                      ? "bg-gradient-to-br from-[#005c4b] to-[#004d40] text-white rounded-br-md"
+                      : "bg-[#1f2c34] text-[#e9edef] rounded-bl-md border border-[#2a3942]/50"
+                      }`}
                   >
                     {msg.type === "CHAT" && (
                       <p className="text-[15px] break-words leading-relaxed">{msg.content}</p>
@@ -218,13 +272,24 @@ export default function ConversationPage() {
                         className="max-w-full rounded-xl max-h-72 object-contain"
                       />
                     )}
-                    <p
-                      className={`text-[11px] mt-1.5 ${
-                        isOwn ? "text-[#99b0a6]" : "text-[#8696a0]"
-                      }`}
-                    >
-                      {formatTime(msg.timestamp)}
-                    </p>
+                    <div className="flex items-center gap-1 mt-1.5">
+                      <span
+                        className={`text-[11px] ${isOwn ? "text-[#99b0a6]" : "text-[#8696a0]"
+                          }`}
+                      >
+                        {formatTime(msg.timestamp)}
+                      </span>
+                      {/* Checkmarks for own messages */}
+                      {isOwn && (
+                        <span className="ml-1">
+                          {isRead ? (
+                            <CheckCheck className="w-4 h-4 text-[#53bdeb]" />
+                          ) : (
+                            <CheckCheck className="w-4 h-4 text-[#99b0a6]" />
+                          )}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -276,7 +341,7 @@ export default function ConversationPage() {
             ref={inputRef}
             type="text"
             value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
+            onChange={(e) => handleInputChange(e.target.value)}
             placeholder="Type a message"
             className="flex-1 bg-[#2a3942] border border-[#2a3942] rounded-2xl px-4 py-2.5 text-white placeholder-[#8696a0] focus:outline-none focus:ring-2 focus:ring-[#00a884]/50 focus:border-[#00a884] text-[15px]"
             disabled={!connected}
@@ -296,3 +361,4 @@ export default function ConversationPage() {
     </>
   );
 }
+

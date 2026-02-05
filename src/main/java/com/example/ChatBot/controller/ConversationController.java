@@ -24,7 +24,7 @@ public class ConversationController {
     private final SimpMessagingTemplate messagingTemplate;
 
     public ConversationController(ConversationService conversationService, UserService userService,
-                                  ChatService chatService, SimpMessagingTemplate messagingTemplate) {
+            ChatService chatService, SimpMessagingTemplate messagingTemplate) {
         this.conversationService = conversationService;
         this.userService = userService;
         this.chatService = chatService;
@@ -33,7 +33,8 @@ public class ConversationController {
 
     /**
      * GET /api/conversations?mobile=xxx
-     * List conversations for the user (most recent first), with other participant info.
+     * List conversations for the user (most recent first), with other participant
+     * info.
      */
     @GetMapping
     public ResponseEntity<List<Map<String, Object>>> list(@RequestParam String mobile) {
@@ -93,7 +94,8 @@ public class ConversationController {
                     map.put("id", conv.getId());
                     map.put("otherParticipantMobile", conv.getOtherParticipant(mobile));
                     UserDocument other = userService.findByMobile(conv.getOtherParticipant(mobile));
-                    map.put("otherParticipantName", other != null ? other.getDisplayName() : conv.getOtherParticipant(mobile));
+                    map.put("otherParticipantName",
+                            other != null ? other.getDisplayName() : conv.getOtherParticipant(mobile));
                     map.put("lastMessageAt", conv.getLastMessageAt());
                     map.put("lastMessagePreview", conv.getLastMessagePreview());
                     return ResponseEntity.ok(map);
@@ -107,27 +109,31 @@ public class ConversationController {
      */
     @GetMapping("/{id}/messages")
     public ResponseEntity<List<Entity>> getMessages(@PathVariable String id, @RequestParam String mobile,
-                                                    @RequestParam(defaultValue = "50") int limit) {
-        if (limit > 100) limit = 100;
+            @RequestParam(defaultValue = "50") int limit) {
+        if (limit > 100)
+            limit = 100;
         // Verify user is participant
         boolean allowed = conversationService.listForUser(mobile).stream()
                 .anyMatch(c -> c.getId().equals(id));
-        if (!allowed) return ResponseEntity.notFound().build();
+        if (!allowed)
+            return ResponseEntity.notFound().build();
         List<Entity> messages = chatService.getMessagesByConversationId(id, limit);
         return ResponseEntity.ok(messages);
     }
 
     /**
      * POST /api/conversations/:id/messages
-     * Body: { "content": "Hello" } for text, or { "fileContent": "base64...", "fileType": "image/jpeg" } for file/image.
+     * Body: { "content": "Hello" } for text, or { "fileContent": "base64...",
+     * "fileType": "image/jpeg" } for file/image.
      * Sends message and pushes to both participants via WebSocket.
      */
     @PostMapping("/{id}/messages")
     public ResponseEntity<Entity> sendMessage(@PathVariable String id, @RequestParam String mobile,
-                                               @RequestBody Map<String, Object> body) {
+            @RequestBody Map<String, Object> body) {
         List<ConversationDocument> myConvs = conversationService.listForUser(mobile);
         ConversationDocument conv = myConvs.stream().filter(c -> c.getId().equals(id)).findFirst().orElse(null);
-        if (conv == null) return ResponseEntity.notFound().build();
+        if (conv == null)
+            return ResponseEntity.notFound().build();
 
         String otherMobile = conv.getOtherParticipant(mobile);
         Entity message = new Entity();
@@ -135,7 +141,8 @@ public class ConversationController {
         message.setConversationId(id);
         message.setTimestamp(System.currentTimeMillis());
 
-        String fileContent = body != null && body.get("fileContent") != null ? body.get("fileContent").toString() : null;
+        String fileContent = body != null && body.get("fileContent") != null ? body.get("fileContent").toString()
+                : null;
         String fileType = body != null && body.get("fileType") != null ? body.get("fileType").toString() : null;
         String content = body != null && body.get("content") != null ? body.get("content").toString() : "";
 
@@ -150,7 +157,8 @@ public class ConversationController {
         }
 
         String savedId = chatService.saveIfPersistable(message);
-        if (savedId != null) message.setId(savedId);
+        if (savedId != null)
+            message.setId(savedId);
 
         messagingTemplate.convertAndSendToUser(mobile, "/queue/messages", message);
         messagingTemplate.convertAndSendToUser(otherMobile, "/queue/messages", message);
@@ -158,8 +166,19 @@ public class ConversationController {
         return ResponseEntity.ok(message);
     }
 
+    /**
+     * DELETE /api/conversations/:id?mobile=xxx
+     * Delete a conversation and all its messages.
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteConversation(@PathVariable String id, @RequestParam String mobile) {
+        boolean deleted = conversationService.deleteConversation(id, mobile);
+        return deleted ? ResponseEntity.ok().build() : ResponseEntity.notFound().build();
+    }
+
     private static String sanitize(String input) {
-        if (input == null) return null;
+        if (input == null)
+            return null;
         return input.replaceAll("<", "&lt;")
                 .replaceAll(">", "&gt;")
                 .replaceAll("\"", "&quot;")

@@ -5,13 +5,10 @@ import com.example.ChatBot.service.JwtService;
 import com.example.ChatBot.service.PresenceService;
 import com.example.ChatBot.service.UserService;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -41,8 +38,10 @@ public class UserController {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             resolvedMobile = jwtService.validateAndGetMobile(authHeader.substring(7));
         }
-        if (resolvedMobile == null) resolvedMobile = mobile;
-        if (resolvedMobile == null) return ResponseEntity.status(401).build();
+        if (resolvedMobile == null)
+            resolvedMobile = mobile;
+        if (resolvedMobile == null)
+            return ResponseEntity.status(401).build();
         UserDocument user = userService.findByMobile(resolvedMobile);
         return user != null ? ResponseEntity.ok(user) : ResponseEntity.notFound().build();
     }
@@ -54,5 +53,49 @@ public class UserController {
     @GetMapping("/online")
     public ResponseEntity<List<String>> online() {
         return ResponseEntity.ok(presenceService.getOnlineMobiles().stream().collect(Collectors.toList()));
+    }
+
+    /**
+     * PUT /api/users/profile
+     * Update user's display name.
+     */
+    @PutMapping("/profile")
+    public ResponseEntity<UserDocument> updateProfile(
+            @RequestParam String mobile,
+            @RequestBody Map<String, String> body) {
+        try {
+            String displayName = body.get("displayName");
+            UserDocument user = userService.updateDisplayName(mobile, displayName);
+            return ResponseEntity.ok(user);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * PUT /api/users/profile/picture
+     * Update user's profile picture.
+     */
+    @PutMapping("/profile/picture")
+    public ResponseEntity<Void> updateProfilePicture(
+            @RequestParam String mobile,
+            @RequestBody Map<String, String> body) {
+        try {
+            String picture = body.get("picture");
+            userService.updateProfilePicture(mobile, picture);
+            return ResponseEntity.ok().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * GET /api/users/profile/picture
+     * Get user's profile picture.
+     */
+    @GetMapping("/profile/picture")
+    public ResponseEntity<Map<String, String>> getProfilePicture(@RequestParam String mobile) {
+        String picture = userService.getProfilePicture(mobile);
+        return ResponseEntity.ok(Map.of("picture", picture != null ? picture : ""));
     }
 }

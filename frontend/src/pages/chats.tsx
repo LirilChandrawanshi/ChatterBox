@@ -1,15 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
-import { MessageCircle, Plus, LogOut, User } from "lucide-react";
+import { MessageCircle, Plus, User, Trash2, X } from "lucide-react";
 import {
   getConversations,
   getOnlineMobiles,
   getOrCreateConversation,
-  clearToken,
+  getProfilePicture,
+  deleteConversation,
   type ConversationSummary,
 } from "@/services/api";
 import { getStoredUser } from "./index";
+import BottomNav from "@/components/BottomNav";
 
 export default function Chats() {
   const router = useRouter();
@@ -23,6 +25,23 @@ export default function Chats() {
   const [newContactMobile, setNewContactMobile] = useState("");
   const [newChatError, setNewChatError] = useState("");
   const [creating, setCreating] = useState(false);
+  const [profilePicture, setProfilePicture] = useState<string | null>(null);
+  const displayName = stored?.displayName ?? myMobile;
+
+  // Selection mode state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Desktop detection - redirect to desktop view only on initial load
+  useEffect(() => {
+    if (router.isReady && window.innerWidth >= 1024 && myMobile) {
+      router.replace(`/desktop?mobile=${encodeURIComponent(myMobile)}`);
+    }
+  }, [router.isReady, myMobile]);
+  const longPressHandledRef = useRef(false);
+  const LONG_PRESS_MS = 500;
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -32,6 +51,9 @@ export default function Chats() {
     }
     getConversations(myMobile).then(setConversations);
     getOnlineMobiles().then((list) => setOnlineMobiles(new Set(list)));
+    getProfilePicture(myMobile).then((pic) => {
+      if (pic) setProfilePicture(pic);
+    }).catch(() => { });
     const t = setInterval(() => getOnlineMobiles().then((list) => setOnlineMobiles(new Set(list))), 10000);
     setLoading(false);
     return () => clearInterval(t);
@@ -82,6 +104,67 @@ export default function Chats() {
     return d.toLocaleDateString([], { month: "short", day: "numeric" });
   };
 
+  // Selection mode handlers
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setSelectionMode(false);
+  };
+
+  const selectAll = () => {
+    setSelectedIds(new Set(conversations.map((c) => c.id)));
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    setDeleting(true);
+    try {
+      await Promise.all(
+        Array.from(selectedIds).map((id) => deleteConversation(id, myMobile))
+      );
+      setConversations((prev) => prev.filter((c) => !selectedIds.has(c.id)));
+      clearSelection();
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const startLongPress = (id: string) => {
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTimerRef.current = null;
+      longPressHandledRef.current = true;
+      setSelectionMode(true);
+      setSelectedIds((prev) => new Set(prev).add(id));
+    }, LONG_PRESS_MS);
+  };
+
+  const cancelLongPress = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const handleChatClick = (conv: ConversationSummary) => {
+    if (selectionMode) {
+      if (longPressHandledRef.current) {
+        longPressHandledRef.current = false;
+        return;
+      }
+      toggleSelect(conv.id);
+    } else {
+      router.push(`/chat/${conv.id}?mobile=${encodeURIComponent(myMobile)}`);
+    }
+  };
+
   if (!myMobile) return null;
 
   return (
@@ -94,37 +177,62 @@ export default function Chats() {
         {/* Header */}
         <header className="bg-gradient-to-r from-[#1a2332] to-[#1f2c34] px-4 py-3 flex items-center justify-between border-b border-[#2a3942]/80 shadow-lg">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#00a884] to-[#008f72] flex items-center justify-center text-white font-semibold shadow-lg ring-2 ring-white/10">
-              {myMobile.slice(-2)}
+            <div className="w-11 h-11 rounded-full overflow-hidden bg-gradient-to-br from-[#00a884] to-[#008f72] flex items-center justify-center text-white font-semibold shadow-lg ring-2 ring-white/10">
+              {profilePicture ? (
+                <img src={profilePicture} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <User className="w-6 h-6" />
+              )}
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-white">Chats</h1>
+              <h1 className="text-lg font-semibold text-white">{displayName}</h1>
               <p className="text-xs text-[#8696a0]">{myMobile}</p>
             </div>
           </div>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setShowNewChat(true)}
-              className="p-2.5 rounded-full text-[#8696a0] hover:bg-white/10 hover:text-[#00a884] transition"
-              title="New chat"
-            >
-              <Plus className="w-6 h-6" />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                localStorage.removeItem("chatterbox_user");
-                clearToken();
-                router.push("/");
-              }}
-              className="p-2.5 rounded-full text-[#8696a0] hover:bg-white/10 hover:text-white transition"
-              title="Sign out"
-            >
-              <LogOut className="w-5 h-5" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowNewChat(true)}
+            className="p-2.5 rounded-full text-[#8696a0] hover:bg-white/10 hover:text-[#00a884] transition"
+            title="New chat"
+          >
+            <Plus className="w-6 h-6" />
+          </button>
         </header>
+
+        {/* Selection toolbar */}
+        {selectionMode && (
+          <div className="bg-[#1f2c34] border-b border-[#2a3942] px-4 py-2 flex items-center justify-between gap-2 animate-fade-in">
+            <span className="text-sm text-white">
+              {selectedIds.size} selected
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={selectAll}
+                className="text-sm px-3 py-1.5 rounded-lg bg-[#2a3942] text-[#8696a0] hover:bg-[#3a4952] hover:text-white transition"
+              >
+                Select all
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteSelected}
+                disabled={selectedIds.size === 0 || deleting}
+                className="text-sm px-3 py-1.5 rounded-lg bg-red-500/90 text-white hover:bg-red-600 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                <Trash2 className="w-4 h-4" />
+                {deleting ? "Deleting..." : "Delete"}
+              </button>
+              <button
+                type="button"
+                onClick={clearSelection}
+                className="p-1.5 rounded-lg hover:bg-[#2a3942] transition"
+                title="Cancel"
+              >
+                <X className="w-4 h-4 text-[#8696a0]" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* New chat modal */}
         {showNewChat && (
@@ -170,7 +278,7 @@ export default function Chats() {
         )}
 
         {/* Chat list */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto pb-20">
           {loading ? (
             <div className="p-4 text-[#8696a0] text-center">Loading…</div>
           ) : conversations.length === 0 ? (
@@ -197,6 +305,7 @@ export default function Chats() {
                 const otherMobile = conv.otherParticipantMobile ?? (conv.participant1 === myMobile ? conv.participant2 : conv.participant1);
                 const name = conv.otherParticipantName ?? otherMobile;
                 const isOnline = onlineMobiles.has(otherMobile);
+                const isSelected = selectedIds.has(conv.id);
                 const colors = ["#00a884", "#667eea", "#f093fb", "#4facfe", "#43e97b"];
                 const str = otherMobile ?? "";
                 const color = colors[Math.abs(str.split("").reduce((a, c) => a + c.charCodeAt(0), 0)) % colors.length];
@@ -204,11 +313,40 @@ export default function Chats() {
                   <li key={conv.id}>
                     <button
                       type="button"
-                      onClick={() =>
-                        router.push(`/chat/${conv.id}?mobile=${encodeURIComponent(myMobile)}`)
-                      }
-                      className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-[#1f2c34]/80 active:bg-[#1f2c34] border-b border-[#1a2332] text-left transition"
+                      onClick={() => handleChatClick(conv)}
+                      onTouchStart={() => startLongPress(conv.id)}
+                      onTouchEnd={cancelLongPress}
+                      onTouchMove={cancelLongPress}
+                      onMouseDown={() => startLongPress(conv.id)}
+                      onMouseUp={cancelLongPress}
+                      onMouseLeave={cancelLongPress}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setSelectionMode(true);
+                        setSelectedIds((prev) => new Set(prev).add(conv.id));
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-3.5 hover:bg-[#1f2c34]/80 active:bg-[#1f2c34] border-b border-[#1a2332] text-left transition ${isSelected ? "bg-[#1f2c34] ring-2 ring-inset ring-[#00a884]/50" : ""
+                        }`}
                     >
+                      {/* Checkbox in selection mode */}
+                      {selectionMode && (
+                        <div
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${isSelected
+                            ? "bg-[#00a884] border-[#00a884]"
+                            : "border-[#8696a0]"
+                            }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSelect(conv.id);
+                          }}
+                        >
+                          {isSelected && (
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                      )}
                       <div className="relative shrink-0">
                         <div
                           className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-lg shadow-md ring-2 ring-white/5"
@@ -239,7 +377,11 @@ export default function Chats() {
             </ul>
           )}
         </div>
+
+        {/* Bottom Navigation */}
+        <BottomNav activeTab="chats" mobile={myMobile} />
       </div>
     </>
   );
 }
+

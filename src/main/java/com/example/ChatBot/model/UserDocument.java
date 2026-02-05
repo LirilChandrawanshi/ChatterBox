@@ -21,6 +21,7 @@ public class UserDocument {
     private String displayName;
     @JsonIgnore
     private String hashedPassword;
+    private String profilePicture; // Base64 encoded profile picture
     private long createdAt;
 
     public UserDocument() {
@@ -33,7 +34,8 @@ public class UserDocument {
     }
 
     public static String normalizeMobile(String mobile) {
-        if (mobile == null) return null;
+        if (mobile == null)
+            return null;
         return mobile.replaceAll("[^0-9]", "").trim();
     }
 
@@ -76,5 +78,13 @@ public class UserDocument {
 
     public void setHashedPassword(String hashedPassword) {
         this.hashedPassword = hashedPassword;
+    }
+
+    public String getProfilePicture() {
+        return profilePicture;
+    }
+
+    public void setProfilePicture(String profilePicture) {
+        this.profilePicture = profilePicture;
     }
 }

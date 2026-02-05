@@ -3,7 +3,7 @@ import SockJS from "sockjs-client";
 
 export interface ChatMessage {
   id?: string;
-  type: "CHAT" | "JOIN" | "LEAVE" | "TYPING" | "FILE" | "DELETED";
+  type: "CHAT" | "JOIN" | "LEAVE" | "TYPING" | "FILE" | "DELETED" | "READ" | "DELIVERED";
   content?: string;
   sender: string;
   conversationId?: string;
@@ -132,6 +132,33 @@ export class WebSocketService {
       }),
     });
   }
+
+  // Send typing indicator for 1:1 conversation (via WebSocket)
+  sendTypingToConversation(conversationId: string) {
+    if (!this.connected || !this.stompClient) return;
+    this.stompClient.publish({
+      destination: "/app/chat.typing",
+      body: JSON.stringify({
+        type: "TYPING",
+        sender: this.mobile,
+        conversationId,
+      }),
+    });
+  }
+
+  // Send read receipt via WebSocket
+  sendReadReceipt(conversationId: string) {
+    if (!this.connected || !this.stompClient) return;
+    this.stompClient.publish({
+      destination: "/app/chat.read",
+      body: JSON.stringify({
+        type: "READ",
+        sender: this.mobile,
+        conversationId,
+      }),
+    });
+  }
 }
 
 export const wsService = new WebSocketService();
+

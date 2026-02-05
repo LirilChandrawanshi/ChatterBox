@@ -191,3 +191,45 @@ export async function sendFileMessage(
   if (!res.ok) throw new Error("Send failed");
   return res.json();
 }
+
+// Profile management functions
+export async function updateDisplayName(mobile: string, newName: string): Promise<User> {
+  const res = await fetch(`${getBase()}/api/users/profile?mobile=${encodeURIComponent(mobile)}`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify({ displayName: newName.trim() }),
+  });
+  if (!res.ok) throw new Error("Failed to update name");
+  return res.json();
+}
+
+export async function updateProfilePicture(mobile: string, base64Image: string): Promise<void> {
+  const res = await fetch(`${getBase()}/api/users/profile/picture?mobile=${encodeURIComponent(mobile)}`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify({ picture: base64Image }),
+  });
+  if (!res.ok) throw new Error("Failed to update profile picture");
+}
+
+export async function getProfilePicture(mobile: string): Promise<string | null> {
+  const res = await fetch(`${getBase()}/api/users/profile/picture?mobile=${encodeURIComponent(mobile)}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.picture || null;
+}
+
+// Conversation management functions
+export async function deleteConversation(conversationId: string, mobile: string): Promise<boolean> {
+  const res = await fetch(
+    `${getBase()}/api/conversations/${conversationId}?mobile=${encodeURIComponent(mobile)}`,
+    { method: "DELETE", headers: authHeaders() }
+  );
+  return res.ok;
+}
+
+export async function deleteMultipleConversations(conversationIds: string[], mobile: string): Promise<boolean[]> {
+  return Promise.all(conversationIds.map((id) => deleteConversation(id, mobile)));
+}

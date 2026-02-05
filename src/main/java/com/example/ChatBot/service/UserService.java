@@ -40,7 +40,8 @@ public class UserService {
      */
     public UserDocument login(String mobile, String password) {
         String normalized = UserDocument.normalizeMobile(mobile);
-        if (normalized == null || password == null) return null;
+        if (normalized == null || password == null)
+            return null;
         return userRepository.findByMobile(normalized)
                 .filter(u -> u.getHashedPassword() != null && passwordEncoder.matches(password, u.getHashedPassword()))
                 .orElse(null);
@@ -68,5 +69,43 @@ public class UserService {
     public UserDocument findByMobile(String mobile) {
         String normalized = UserDocument.normalizeMobile(mobile);
         return userRepository.findByMobile(normalized).orElse(null);
+    }
+
+    /**
+     * Update user's display name.
+     */
+    public UserDocument updateDisplayName(String mobile, String newDisplayName) {
+        String normalized = UserDocument.normalizeMobile(mobile);
+        UserDocument user = userRepository.findByMobile(normalized).orElse(null);
+        if (user == null) {
+            throw new IllegalArgumentException("User not found");
+        }
+        if (newDisplayName != null && !newDisplayName.isBlank()) {
+            user.setDisplayName(newDisplayName.trim());
+            return userRepository.save(user);
+        }
+        return user;
+    }
+
+    /**
+     * Update user's profile picture (base64 encoded).
+     */
+    public UserDocument updateProfilePicture(String mobile, String base64Picture) {
+        String normalized = UserDocument.normalizeMobile(mobile);
+        UserDocument user = userRepository.findByMobile(normalized).orElse(null);
+        if (user == null) {
+            throw new IllegalArgumentException("User not found");
+        }
+        user.setProfilePicture(base64Picture);
+        return userRepository.save(user);
+    }
+
+    /**
+     * Get user's profile picture.
+     */
+    public String getProfilePicture(String mobile) {
+        String normalized = UserDocument.normalizeMobile(mobile);
+        UserDocument user = userRepository.findByMobile(normalized).orElse(null);
+        return user != null ? user.getProfilePicture() : null;
     }
 }

@@ -3,6 +3,7 @@ package com.example.ChatBot.service;
 import com.example.ChatBot.model.ConversationDocument;
 import com.example.ChatBot.model.UserDocument;
 import com.example.ChatBot.repository.ConversationRepository;
+import com.example.ChatBot.repository.ChatMessageRepository;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
@@ -12,9 +13,12 @@ import java.util.List;
 public class ConversationService {
 
     private final ConversationRepository conversationRepository;
+    private final ChatMessageRepository chatMessageRepository;
 
-    public ConversationService(ConversationRepository conversationRepository) {
+    public ConversationService(ConversationRepository conversationRepository,
+            ChatMessageRepository chatMessageRepository) {
         this.conversationRepository = conversationRepository;
+        this.chatMessageRepository = chatMessageRepository;
     }
 
     /**
@@ -37,7 +41,8 @@ public class ConversationService {
      */
     public List<ConversationDocument> listForUser(String mobile) {
         String m = UserDocument.normalizeMobile(mobile);
-        if (m == null) return List.of();
+        if (m == null)
+            return List.of();
         Sort sort = Sort.by(Sort.Direction.DESC, "lastMessageAt");
         return conversationRepository.findByParticipant1OrParticipant2(m, m, sort);
     }
@@ -48,5 +53,24 @@ public class ConversationService {
             conv.setLastMessagePreview(preview != null && preview.length() > 100 ? preview.substring(0, 100) : preview);
             conversationRepository.save(conv);
         });
+    }
+
+    /**
+     * Delete a conversation and all its messages.
+     * Returns true if deleted, false if not found or not authorized.
+     */
+    public boolean deleteConversation(String conversationId, String mobile) {
+        String m = UserDocument.normalizeMobile(mobile);
+        if (m == null || conversationId == null)
+            return false;
+
+        return conversationRepository.findById(conversationId)
+                .filter(conv -> m.equals(conv.getParticipant1()) || m.equals(conv.getParticipant2()))
+                .map(conv -> {
+                    chatMessageRepository.deleteByConversationId(conversationId);
+                    conversationRepository.delete(conv);
+                    return true;
+                })
+                .orElse(false);
     }
 }

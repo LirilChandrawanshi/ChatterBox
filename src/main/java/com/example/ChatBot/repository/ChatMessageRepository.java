@@ -13,4 +13,6 @@ public interface ChatMessageRepository extends MongoRepository<ChatMessageDocume
     List<ChatMessageDocument> findByOrderByTimestampDesc(Pageable pageable);
 
     List<ChatMessageDocument> findByConversationIdOrderByTimestampDesc(String conversationId, Pageable pageable);
+
+    void deleteByConversationId(String conversationId);
 }
