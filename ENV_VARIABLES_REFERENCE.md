@@ -10,7 +10,7 @@ SPRING_PROFILES_ACTIVE=production
 
 # MongoDB Connection String (from MongoDB Atlas)
 # Format: mongodb+srv://username:password@cluster-name.xxxxx.mongodb.net/?appName=ClusterName
-SPRING_DATA_MONGODB_URI=mongodb+srv://liril625_db_user:NRCXvUuWi7GiNKdj@cluster0.iky5ejj.mongodb.net/?appName=Cluster0
+SPRING_DATA_MONGODB_URI=mappName=Cluster0
 ```
 
 ### Optional Variables
@@ -68,6 +68,7 @@ NEXT_PUBLIC_WS_URL=http://localhost:8080/ws
 3. Click "Settings" tab
 4. Select "Environment Variables"
 5. Add `NEXT_PUBLIC_WS_URL`
+add 
 6. Redeploy from "Deployments" tab for changes to take effect
 
 ---
@@ -110,17 +111,6 @@ NEXT_PUBLIC_WS_URL=http://localhost:8080/ws
 
 ---
 
-## MongoDB Atlas Connection String Explained
-
-Example: `mongodb+srv://liril625_db_user:NRCXvUuWi7GiNKdj@cluster0.iky5ejj.mongodb.net/?appName=Cluster0`
-
-- `mongodb+srv://` - Protocol (secure connection)
-- `liril625_db_user` - Database username
-- `:` - Separator
-- `NRCXvUuWi7GiNKdj` - Database password
-- `@` - Separator
-- `cluster0.iky5ejj.mongodb.net` - MongoDB server address
-- `/?appName=Cluster0` - Query parameter
 
 ---
 
