@@ -43,25 +43,51 @@ export default function ConversationPage() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
   const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const longPressActiveRef = useRef(false);
 
   // Handlers
   const handleLongPress = (msgId: string) => {
     if (!msgId) return;
+    longPressActiveRef.current = true;
     setSelectionMode(true);
     setSelectedMessageIds(new Set([msgId]));
     if (window.navigator?.vibrate) window.navigator.vibrate(50);
   };
 
-  const handleTouchStart = (msgId: string) => {
-    if (selectionMode) return; // If already selecting, regular click handles it
+  const handleTouchStart = (e: React.TouchEvent, msgId: string) => {
+    if (selectionMode) return;
+    longPressActiveRef.current = false;
     longPressTimerRef.current = setTimeout(() => handleLongPress(msgId), 500);
   };
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = (e: React.TouchEvent) => {
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
+    }
+    // Prevent click if long press was activated
+    if (longPressActiveRef.current) {
+      e.preventDefault();
+      longPressActiveRef.current = false;
+    }
+  };
+
+  const handleTouchMove = () => {
+    // Cancel long press if user moves finger
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const scrollToMessage = (msgId: string) => {
+    const el = document.getElementById(`msg-${msgId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightedMessageId(msgId);
+      setTimeout(() => setHighlightedMessageId(null), 2000);
     }
   };
 
@@ -370,28 +396,32 @@ export default function ConversationPage() {
               return (
                 <div
                   key={msg.id ?? `m-${index}`}
+                  id={`msg-${msg.id}`}
                   className={`flex ${isOwn ? "justify-end" : "justify-start"} animate-message-in`}
                 >
                   <div
                     onClick={() => selectionMode ? toggleSelection(msg.id!) : null}
-                    onTouchStart={() => handleTouchStart(msg.id!)}
+                    onTouchStart={(e) => handleTouchStart(e, msg.id!)}
                     onTouchEnd={handleTouchEnd}
-                    onMouseDown={() => !selectionMode && msg.id && (longPressTimerRef.current = setTimeout(() => handleLongPress(msg.id!), 500))}
-                    onMouseUp={() => { if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; } }}
-                    onMouseLeave={() => { if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; } }}
-                    className={`max-w-[82%] rounded-2xl px-4 py-2.5 shadow-lg relative transition-colors duration-200 ${isOwn
+                    onTouchMove={handleTouchMove}
+                    onContextMenu={(e) => { e.preventDefault(); handleLongPress(msg.id!); }}
+                    className={`max-w-[82%] rounded-2xl px-4 py-2.5 shadow-lg relative transition-all duration-300 select-none ${isOwn
                       ? "bg-gradient-to-br from-[#005c4b] to-[#004d40] text-white rounded-br-md"
                       : "bg-[#1f2c34] text-[#e9edef] rounded-bl-md border border-[#2a3942]/50"
-                      } ${selectedMessageIds.has(msg.id!) ? "bg-[#00a884]/40 ring-2 ring-[#00a884]" : ""}`}
+                      } ${selectedMessageIds.has(msg.id!) ? "ring-2 ring-[#00a884] scale-[0.98]" : ""} ${highlightedMessageId === msg.id ? "ring-2 ring-yellow-400 bg-yellow-400/20 animate-pulse" : ""}`}
                   >
-                    {/* Quoted Reply */}
+                    {/* Quoted Reply - Clickable */}
                     {msg.replyToId && (
-                      <div className={`mb-2 rounded-lg p-2 text-sm border-l-4 ${isOwn ? "bg-black/20 border-white/50" : "bg-black/20 border-[#00a884]"}`}>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); scrollToMessage(msg.replyToId!); }}
+                        className={`w-full text-left mb-2 rounded-lg p-2 text-sm border-l-4 cursor-pointer hover:opacity-80 transition ${isOwn ? "bg-black/20 border-white/50" : "bg-black/20 border-[#00a884]"}`}
+                      >
                         <div className={`text-xs font-medium mb-1 ${isOwn ? "text-white/80" : "text-[#00a884]"}`}>
                           {msg.replyToSender === myMobile ? "You" : msg.replyToSender || "Someone"}
                         </div>
                         <div className="truncate opacity-80">{msg.replyToContent || "Message"}</div>
-                      </div>
+                      </button>
                     )}
                     {msg.type === "CHAT" && (
                       <p className="text-[15px] break-words leading-relaxed">{msg.content}</p>

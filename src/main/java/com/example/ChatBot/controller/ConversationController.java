@@ -156,6 +156,20 @@ public class ConversationController {
             message.setContent(sanitize(content));
         }
 
+        // Handle reply-to fields
+        String replyToId = body != null && body.get("replyToId") != null ? body.get("replyToId").toString() : null;
+        String replyToContent = body != null && body.get("replyToContent") != null
+                ? body.get("replyToContent").toString()
+                : null;
+        String replyToSender = body != null && body.get("replyToSender") != null ? body.get("replyToSender").toString()
+                : null;
+
+        if (replyToId != null && !replyToId.isBlank()) {
+            message.setReplyToId(replyToId);
+            message.setReplyToContent(replyToContent);
+            message.setReplyToSender(replyToSender);
+        }
+
         String savedId = chatService.saveIfPersistable(message);
         if (savedId != null)
             message.setId(savedId);

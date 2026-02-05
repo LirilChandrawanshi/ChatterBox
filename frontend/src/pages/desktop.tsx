@@ -67,6 +67,7 @@ export default function DesktopChats() {
     const [messageSelectionMode, setMessageSelectionMode] = useState(false);
     const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
     const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null);
+    const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
 
     const messageAreaRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -431,6 +432,15 @@ export default function DesktopChats() {
         setReplyToMessage(null);
     };
 
+    const scrollToMessage = (msgId: string) => {
+        const el = document.getElementById(`msg-${msgId}`);
+        if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            setHighlightedMessageId(msgId);
+            setTimeout(() => setHighlightedMessageId(null), 2000);
+        }
+    };
+
     if (!myMobile) return null;
 
     // Sidebar component
@@ -644,7 +654,7 @@ export default function DesktopChats() {
                         const isOwn = msg.sender === myMobile;
                         const isRead = msg.id && readMessageIds.has(msg.id);
                         return (
-                            <div key={msg.id ?? `m-${index}`} className={`flex ${isOwn ? "justify-end" : "justify-start"}`}>
+                            <div key={msg.id ?? `m-${index}`} id={`msg-${msg.id}`} className={`flex ${isOwn ? "justify-end" : "justify-start"}`}>
                                 <div
                                     onClick={() => messageSelectionMode ? toggleMessageSelection(msg.id!) : null}
                                     onContextMenu={(e) => {
@@ -652,19 +662,23 @@ export default function DesktopChats() {
                                         setMessageSelectionMode(true);
                                         setSelectedMessageIds((prev) => new Set(prev).add(msg.id!));
                                     }}
-                                    className={`relative max-w-[70%] rounded-2xl px-4 py-2.5 shadow-lg cursor-pointer ${isOwn
+                                    className={`relative max-w-[70%] rounded-2xl px-4 py-2.5 shadow-lg cursor-pointer transition-all duration-300 select-none ${isOwn
                                         ? "bg-gradient-to-br from-[#00a884] to-[#008f72] text-white rounded-br-sm"
                                         : "bg-[#1f2c34] text-white rounded-bl-sm"
-                                        } ${selectedMessageIds.has(msg.id!) ? "ring-2 ring-white/50 bg-opacity-80" : ""}`}
+                                        } ${selectedMessageIds.has(msg.id!) ? "ring-2 ring-[#00a884] scale-[0.98]" : ""} ${highlightedMessageId === msg.id ? "ring-2 ring-yellow-400 bg-yellow-400/20 animate-pulse" : ""}`}
                                 >
-                                    {/* Quoted Reply */}
+                                    {/* Quoted Reply - Clickable */}
                                     {msg.replyToId && (
-                                        <div className={`mb-2 rounded-lg p-2 text-sm border-l-4 ${isOwn ? "bg-black/20 border-white/50" : "bg-black/20 border-[#00a884]"}`}>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); scrollToMessage(msg.replyToId!); }}
+                                            className={`w-full text-left mb-2 rounded-lg p-2 text-sm border-l-4 cursor-pointer hover:opacity-80 transition ${isOwn ? "bg-black/20 border-white/50" : "bg-black/20 border-[#00a884]"}`}
+                                        >
                                             <div className={`text-xs font-medium mb-1 ${isOwn ? "text-white/80" : "text-[#00a884]"}`}>
                                                 {msg.replyToSender === myMobile ? "You" : msg.replyToSender || "Someone"}
                                             </div>
                                             <div className="truncate opacity-80">{msg.replyToContent || "Message"}</div>
-                                        </div>
+                                        </button>
                                     )}
                                     {msg.type === "CHAT" && <p className="text-sm leading-relaxed">{msg.content}</p>}
                                     {msg.type === "FILE" && msg.fileContent && (
