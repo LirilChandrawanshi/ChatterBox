@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, FormEvent } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
-import { ArrowLeft, Paperclip, Smile, Send, Check, CheckCheck } from "lucide-react";
+import { ArrowLeft, Paperclip, Smile, Send, Check, CheckCheck, Trash2, Reply, X } from "lucide-react";
 import { wsService, type ChatMessage } from "@/services/websocket";
 import {
   getMessages,
   sendMessage as apiSendMessage,
   sendFileMessage as apiSendFileMessage,
+  deleteMessages,
   getConversation,
 } from "@/services/api";
 import { getStoredUser } from "../index";
@@ -37,6 +38,78 @@ export default function ConversationPage() {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const sendTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isTypingSentRef = useRef(false);
+
+  // Message selection & Reply state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
+  const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Handlers
+  const handleLongPress = (msgId: string) => {
+    if (!msgId) return;
+    setSelectionMode(true);
+    setSelectedMessageIds(new Set([msgId]));
+    if (window.navigator?.vibrate) window.navigator.vibrate(50);
+  };
+
+  const handleTouchStart = (msgId: string) => {
+    if (selectionMode) return; // If already selecting, regular click handles it
+    longPressTimerRef.current = setTimeout(() => handleLongPress(msgId), 500);
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const toggleSelection = (msgId: string) => {
+    if (!selectionMode) return;
+    setSelectedMessageIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(msgId)) {
+        next.delete(msgId);
+        if (next.size === 0) setSelectionMode(false);
+      } else {
+        next.add(msgId);
+      }
+      return next;
+    });
+  };
+
+  const cancelSelection = () => {
+    setSelectionMode(false);
+    setSelectedMessageIds(new Set());
+  };
+
+  const handleDeleteSelected = async () => {
+    if (confirm(`Delete ${selectedMessageIds.size} messages?`)) {
+      const ids = Array.from(selectedMessageIds);
+      const success = await deleteMessages(ids);
+      if (success) {
+        // Optimistic update
+        setMessages((prev) => prev.filter((m) => !selectedMessageIds.has(m.id!)));
+        cancelSelection();
+      }
+    }
+  };
+
+  const handleReplyAction = () => {
+    if (selectedMessageIds.size !== 1) return;
+    const msgId = Array.from(selectedMessageIds)[0];
+    const msg = messages.find((m) => m.id === msgId);
+    if (msg) {
+      setReplyToMessage(msg);
+      cancelSelection();
+      inputRef.current?.focus();
+    }
+  };
+
+  const handleCancelReply = () => {
+    setReplyToMessage(null);
+  };
 
   useEffect(() => {
     if (!router.isReady || !myMobile || !convId) return;
@@ -123,10 +196,20 @@ export default function ConversationPage() {
     setInputMessage("");
     setShowEmoji(false);
     isTypingSentRef.current = false;
+
+    // Capture reply state then clear it
+    const replyTo = replyToMessage ? {
+      id: replyToMessage.id!,
+      content: replyToMessage.content || "Media",
+      sender: replyToMessage.sender
+    } : undefined;
+    setReplyToMessage(null);
+
     try {
-      await apiSendMessage(convId, myMobile, text);
+      await apiSendMessage(convId, myMobile, text, replyTo);
     } catch {
       setInputMessage(text);
+      // Restore reply state on failure if needed, but simplifying for now
     }
   };
 
@@ -204,30 +287,63 @@ export default function ConversationPage() {
 
       <div className="flex flex-col h-screen bg-[#0a0e12]">
         {/* Header */}
-        <header className="bg-gradient-to-r from-[#1a2332] to-[#1f2c34] px-4 py-3 flex items-center gap-3 border-b border-[#2a3942]/80 shadow-lg">
-          <button
-            type="button"
-            onClick={() => router.push(`/chats?mobile=${encodeURIComponent(myMobile)}`)}
-            className="p-2 -ml-2 rounded-full text-[#8696a0] hover:bg-white/10 hover:text-white transition"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div
-            className="w-11 h-11 rounded-full flex items-center justify-center text-white font-semibold shrink-0 shadow-md ring-2 ring-white/10"
-            style={{ backgroundColor: getAvatarColor(otherMobile || "?") }}
-          >
-            {(otherName || otherMobile || "?").charAt(0).toUpperCase()}
-          </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-white font-semibold truncate text-lg">{otherName || otherMobile || "Chat"}</h1>
-            <p className="text-xs text-[#8696a0]">
-              {isTyping ? (
-                <span className="text-[#00a884] animate-pulse">typing...</span>
-              ) : (
-                otherMobile || ""
-              )}
-            </p>
-          </div>
+        {/* Header / Action Bar */}
+        <header className={`px-4 py-3 flex items-center gap-3 border-b border-[#2a3942]/80 shadow-lg ${selectionMode ? "bg-[#1f2c34]" : "bg-gradient-to-r from-[#1a2332] to-[#1f2c34]"}`}>
+          {selectionMode ? (
+            <>
+              <button
+                onClick={cancelSelection}
+                className="p-2 -ml-2 rounded-full text-[#8696a0] hover:bg-white/10 hover:text-white transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <div className="flex-1 text-white font-semibold text-lg">{selectedMessageIds.size} selected</div>
+              <div className="flex items-center gap-2">
+                {selectedMessageIds.size === 1 && (
+                  <button
+                    onClick={handleReplyAction}
+                    className="p-2 rounded-full text-white hover:bg-white/10 transition"
+                    title="Reply"
+                  >
+                    <Reply className="w-5 h-5" />
+                  </button>
+                )}
+                <button
+                  onClick={handleDeleteSelected}
+                  className="p-2 rounded-full text-white hover:bg-white/10 transition hover:text-red-400"
+                  title="Delete"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => router.push(`/chats?mobile=${encodeURIComponent(myMobile)}`)}
+                className="p-2 -ml-2 rounded-full text-[#8696a0] hover:bg-white/10 hover:text-white transition"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div
+                className="w-11 h-11 rounded-full flex items-center justify-center text-white font-semibold shrink-0 shadow-md ring-2 ring-white/10"
+                style={{ backgroundColor: getAvatarColor(otherMobile || "?") }}
+              >
+                {(otherName || otherMobile || "?").charAt(0).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-white font-semibold truncate text-lg">{otherName || otherMobile || "Chat"}</h1>
+                <p className="text-xs text-[#8696a0]">
+                  {isTyping ? (
+                    <span className="text-[#00a884] animate-pulse">typing...</span>
+                  ) : (
+                    otherMobile || ""
+                  )}
+                </p>
+              </div>
+            </>
+          )}
         </header>
 
         {connecting && !connectionError && (
@@ -257,11 +373,26 @@ export default function ConversationPage() {
                   className={`flex ${isOwn ? "justify-end" : "justify-start"} animate-message-in`}
                 >
                   <div
-                    className={`max-w-[82%] rounded-2xl px-4 py-2.5 shadow-lg ${isOwn
+                    onClick={() => selectionMode ? toggleSelection(msg.id!) : null}
+                    onTouchStart={() => handleTouchStart(msg.id!)}
+                    onTouchEnd={handleTouchEnd}
+                    onMouseDown={() => !selectionMode && msg.id && (longPressTimerRef.current = setTimeout(() => handleLongPress(msg.id!), 500))}
+                    onMouseUp={() => { if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; } }}
+                    onMouseLeave={() => { if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; } }}
+                    className={`max-w-[82%] rounded-2xl px-4 py-2.5 shadow-lg relative transition-colors duration-200 ${isOwn
                       ? "bg-gradient-to-br from-[#005c4b] to-[#004d40] text-white rounded-br-md"
                       : "bg-[#1f2c34] text-[#e9edef] rounded-bl-md border border-[#2a3942]/50"
-                      }`}
+                      } ${selectedMessageIds.has(msg.id!) ? "bg-[#00a884]/40 ring-2 ring-[#00a884]" : ""}`}
                   >
+                    {/* Quoted Reply */}
+                    {msg.replyToId && (
+                      <div className={`mb-2 rounded-lg p-2 text-sm border-l-4 ${isOwn ? "bg-black/20 border-white/50" : "bg-black/20 border-[#00a884]"}`}>
+                        <div className={`text-xs font-medium mb-1 ${isOwn ? "text-white/80" : "text-[#00a884]"}`}>
+                          {msg.replyToSender === myMobile ? "You" : msg.replyToSender || "Someone"}
+                        </div>
+                        <div className="truncate opacity-80">{msg.replyToContent || "Message"}</div>
+                      </div>
+                    )}
                     {msg.type === "CHAT" && (
                       <p className="text-[15px] break-words leading-relaxed">{msg.content}</p>
                     )}
@@ -317,42 +448,59 @@ export default function ConversationPage() {
         {/* Input */}
         <form
           onSubmit={handleSend}
-          className="bg-[#1a2332] border-t border-[#2a3942] p-3 flex items-center gap-2"
+          className="bg-[#1a2332] border-t border-[#2a3942] flex flex-col"
         >
-          <button
-            type="button"
-            onClick={() => setShowEmoji((s) => !s)}
-            className="p-2.5 rounded-full text-[#8696a0] hover:bg-[#2a3942] hover:text-[#00a884] transition"
-            title="Emoji"
-          >
-            <Smile className="w-5 h-5" />
-          </button>
-          <label className="p-2.5 rounded-full text-[#8696a0] hover:bg-[#2a3942] hover:text-[#00a884] transition cursor-pointer disabled:opacity-50">
+          {replyToMessage && (
+            <div className="px-4 py-2 bg-[#1f2c34] border-l-4 border-[#00a884] flex items-center justify-between animate-fade-in relative z-10">
+              <div className="overflow-hidden">
+                <div className="text-[#00a884] text-sm font-medium mb-0.5">
+                  Replying to {replyToMessage.sender === myMobile ? "yourself" : replyToMessage.sender}
+                </div>
+                <div className="text-[#8696a0] text-sm truncate">
+                  {replyToMessage.content || "Media"}
+                </div>
+              </div>
+              <button onClick={handleCancelReply} className="p-1 rounded-full bg-[#374248] text-[#8696a0]">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+          <div className="p-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowEmoji((s) => !s)}
+              className="p-2.5 rounded-full text-[#8696a0] hover:bg-[#2a3942] hover:text-[#00a884] transition"
+              title="Emoji"
+            >
+              <Smile className="w-5 h-5" />
+            </button>
+            <label className="p-2.5 rounded-full text-[#8696a0] hover:bg-[#2a3942] hover:text-[#00a884] transition cursor-pointer disabled:opacity-50">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleFileUpload}
+                className="hidden"
+                disabled={!connected || sendingFile}
+              />
+              <Paperclip className="w-5 h-5" />
+            </label>
             <input
-              type="file"
-              accept="image/*"
-              onChange={handleFileUpload}
-              className="hidden"
-              disabled={!connected || sendingFile}
+              ref={inputRef}
+              type="text"
+              value={inputMessage}
+              onChange={(e) => handleInputChange(e.target.value)}
+              placeholder="Type a message"
+              className="flex-1 bg-[#2a3942] border border-[#2a3942] rounded-2xl px-4 py-2.5 text-white placeholder-[#8696a0] focus:outline-none focus:ring-2 focus:ring-[#00a884]/50 focus:border-[#00a884] text-[15px]"
+              disabled={!connected}
             />
-            <Paperclip className="w-5 h-5" />
-          </label>
-          <input
-            ref={inputRef}
-            type="text"
-            value={inputMessage}
-            onChange={(e) => handleInputChange(e.target.value)}
-            placeholder="Type a message"
-            className="flex-1 bg-[#2a3942] border border-[#2a3942] rounded-2xl px-4 py-2.5 text-white placeholder-[#8696a0] focus:outline-none focus:ring-2 focus:ring-[#00a884]/50 focus:border-[#00a884] text-[15px]"
-            disabled={!connected}
-          />
-          <button
-            type="submit"
-            disabled={!connected || !inputMessage.trim()}
-            className="p-2.5 rounded-full bg-[#00a884] text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#06cf9c] hover:scale-105 active:scale-95 transition shadow-lg shadow-[#00a884]/20"
-          >
-            <Send className="w-5 h-5" />
-          </button>
+            <button
+              type="submit"
+              disabled={!connected || !inputMessage.trim()}
+              className="p-2.5 rounded-full bg-[#00a884] text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#06cf9c] hover:scale-105 active:scale-95 transition shadow-lg shadow-[#00a884]/20"
+            >
+              <Send className="w-5 h-5" />
+            </button>
+          </div>
         </form>
         {sendingFile && (
           <p className="text-center text-xs text-[#8696a0] py-1">Sending…</p>

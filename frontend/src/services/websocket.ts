@@ -11,6 +11,10 @@ export interface ChatMessage {
   fileType?: string;
   timestamp?: number;
   messageIds?: string[];
+  // Reply-to-message fields
+  replyToId?: string;
+  replyToContent?: string;
+  replyToSender?: string;
 }
 
 export class WebSocketService {

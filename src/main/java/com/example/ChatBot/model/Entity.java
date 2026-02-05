@@ -30,6 +30,11 @@ public class Entity {
 
     private long timestamp;
 
+    /** For reply-to-message feature */
+    private String replyToId;
+    private String replyToContent;
+    private String replyToSender;
+
     public enum MessageType {
         CHAT,
         JOIN,
@@ -102,5 +107,29 @@ public class Entity {
 
     public void setConversationId(String conversationId) {
         this.conversationId = conversationId;
+    }
+
+    public String getReplyToId() {
+        return replyToId;
+    }
+
+    public void setReplyToId(String replyToId) {
+        this.replyToId = replyToId;
+    }
+
+    public String getReplyToContent() {
+        return replyToContent;
+    }
+
+    public void setReplyToContent(String replyToContent) {
+        this.replyToContent = replyToContent;
+    }
+
+    public String getReplyToSender() {
+        return replyToSender;
+    }
+
+    public void setReplyToSender(String replyToSender) {
+        this.replyToSender = replyToSender;
     }
 }

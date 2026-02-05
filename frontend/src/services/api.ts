@@ -143,6 +143,10 @@ export interface ChatMessage {
   fileContent?: string;
   fileType?: string;
   messageIds?: string[];
+  // Reply-to-message fields
+  replyToId?: string;
+  replyToContent?: string;
+  replyToSender?: string;
 }
 
 export async function getMessages(
@@ -157,17 +161,33 @@ export async function getMessages(
   return res.json();
 }
 
+export async function deleteMessages(ids: string[]): Promise<boolean> {
+  const res = await fetch(`${getBase()}/api/messages`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(ids),
+  });
+  return res.ok;
+}
+
 export async function sendMessage(
   conversationId: string,
   mobile: string,
-  content: string
+  content: string,
+  replyTo?: { id: string; content: string; sender: string }
 ): Promise<ChatMessage> {
+  const payload: any = { content: content.trim() };
+  if (replyTo) {
+    payload.replyToId = replyTo.id;
+    payload.replyToContent = replyTo.content;
+    payload.replyToSender = replyTo.sender;
+  }
   const res = await fetch(
     `${getBase()}/api/conversations/${conversationId}/messages?mobile=${encodeURIComponent(mobile)}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: content.trim() }),
+      body: JSON.stringify(payload),
     }
   );
   if (!res.ok) throw new Error("Send failed");

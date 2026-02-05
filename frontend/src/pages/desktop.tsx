@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef, FormEvent, ChangeEvent } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
-import { MessageCircle, Plus, User, Trash2, X, ArrowLeft, Paperclip, Smile, Send, Search, Check, CheckCheck, Camera, LogOut, Settings, Pencil, Lightbulb, Sparkles } from "lucide-react";
+import { MessageCircle, Plus, User, Trash2, X, ArrowLeft, Paperclip, Smile, Send, Search, Check, CheckCheck, Camera, LogOut, Settings, Pencil, Lightbulb, Sparkles, Reply } from "lucide-react";
 import {
     getConversations,
     getOnlineMobiles,
     getOrCreateConversation,
     getProfilePicture,
     deleteConversation,
+    deleteMessages,
     getMessages,
     sendMessage as apiSendMessage,
     sendFileMessage as apiSendFileMessage,
@@ -61,6 +62,11 @@ export default function DesktopChats() {
     const [sendingFile, setSendingFile] = useState(false);
     const [isTyping, setIsTyping] = useState(false);
     const [readMessageIds, setReadMessageIds] = useState<Set<string>>(new Set());
+
+    // Message selection & Reply state
+    const [messageSelectionMode, setMessageSelectionMode] = useState(false);
+    const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
+    const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null);
 
     const messageAreaRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -254,8 +260,17 @@ export default function DesktopChats() {
         setInputMessage("");
         setShowEmoji(false);
         isTypingSentRef.current = false;
+
+        // Capture reply state then clear it
+        const replyTo = replyToMessage ? {
+            id: replyToMessage.id!,
+            content: replyToMessage.content || "Media",
+            sender: replyToMessage.sender
+        } : undefined;
+        setReplyToMessage(null);
+
         try {
-            await apiSendMessage(selectedChatId, myMobile, text);
+            await apiSendMessage(selectedChatId, myMobile, text, replyTo);
         } catch {
             setInputMessage(text);
         }
@@ -368,6 +383,52 @@ export default function DesktopChats() {
         localStorage.removeItem("chatterbox_user");
         clearToken();
         router.push("/");
+    };
+
+    // Message selection handlers
+    const toggleMessageSelection = (msgId: string) => {
+        if (!messageSelectionMode) return;
+        setSelectedMessageIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(msgId)) {
+                next.delete(msgId);
+                if (next.size === 0) setMessageSelectionMode(false);
+            } else {
+                next.add(msgId);
+            }
+            return next;
+        });
+    };
+
+    const cancelMessageSelection = () => {
+        setMessageSelectionMode(false);
+        setSelectedMessageIds(new Set());
+    };
+
+    const handleDeleteSelectedMessages = async () => {
+        if (confirm(`Delete ${selectedMessageIds.size} messages?`)) {
+            const ids = Array.from(selectedMessageIds);
+            const success = await deleteMessages(ids);
+            if (success) {
+                setMessages((prev) => prev.filter((m) => !selectedMessageIds.has(m.id!)));
+                cancelMessageSelection();
+            }
+        }
+    };
+
+    const handleReplyAction = () => {
+        if (selectedMessageIds.size !== 1) return;
+        const msgId = Array.from(selectedMessageIds)[0];
+        const msg = messages.find((m) => m.id === msgId);
+        if (msg) {
+            setReplyToMessage(msg);
+            cancelMessageSelection();
+            inputRef.current?.focus();
+        }
+    };
+
+    const handleCancelReply = () => {
+        setReplyToMessage(null);
     };
 
     if (!myMobile) return null;
@@ -527,25 +588,46 @@ export default function DesktopChats() {
     // Main chat panel
     const MainPanel = selectedChatId ? (
         <div className="flex flex-col h-full">
-            {/* Chat header */}
-            <div className="px-6 py-4 border-b border-white/5 flex items-center gap-4 bg-[#111827]/50">
-                <div
-                    className="w-11 h-11 rounded-full flex items-center justify-center text-white font-semibold"
-                    style={{ backgroundColor: getAvatarColor(otherMobile || "?") }}
-                >
-                    {(otherName || otherMobile || "?").charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1">
-                    <h2 className="text-white font-semibold">{otherName || otherMobile || "Chat"}</h2>
-                    <p className="text-xs text-[#8696a0]">
-                        {isTyping ? (
-                            <span className="text-[#00a884] animate-pulse">typing...</span>
-                        ) : (
-                            onlineMobiles.has(otherMobile) ? "Online" : "Offline"
+            {/* Chat header OR Action Bar */}
+            {messageSelectionMode ? (
+                <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between bg-[#1f2c34]">
+                    <div className="flex items-center gap-4">
+                        <button onClick={cancelMessageSelection} className="p-2 -ml-2 rounded-full text-[#8696a0] hover:bg-white/10 hover:text-white transition">
+                            <X className="w-5 h-5" />
+                        </button>
+                        <span className="text-white font-semibold">{selectedMessageIds.size} selected</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {selectedMessageIds.size === 1 && (
+                            <button onClick={handleReplyAction} className="p-2 rounded-full text-white hover:bg-white/10 transition" title="Reply">
+                                <Reply className="w-5 h-5" />
+                            </button>
                         )}
-                    </p>
+                        <button onClick={handleDeleteSelectedMessages} className="p-2 rounded-full text-white hover:bg-white/10 transition hover:text-red-400" title="Delete">
+                            <Trash2 className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
-            </div>
+            ) : (
+                <div className="px-6 py-4 border-b border-white/5 flex items-center gap-4 bg-[#111827]/50">
+                    <div
+                        className="w-11 h-11 rounded-full flex items-center justify-center text-white font-semibold"
+                        style={{ backgroundColor: getAvatarColor(otherMobile || "?") }}
+                    >
+                        {(otherName || otherMobile || "?").charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1">
+                        <h2 className="text-white font-semibold">{otherName || otherMobile || "Chat"}</h2>
+                        <p className="text-xs text-[#8696a0]">
+                            {isTyping ? (
+                                <span className="text-[#00a884] animate-pulse">typing...</span>
+                            ) : (
+                                onlineMobiles.has(otherMobile) ? "Online" : "Offline"
+                            )}
+                        </p>
+                    </div>
+                </div>
+            )}
 
             {connectionError && (
                 <div className="px-4 py-2 bg-red-500/20 text-red-300 text-sm text-center">{connectionError}</div>
@@ -564,11 +646,26 @@ export default function DesktopChats() {
                         return (
                             <div key={msg.id ?? `m-${index}`} className={`flex ${isOwn ? "justify-end" : "justify-start"}`}>
                                 <div
-                                    className={`max-w-[70%] rounded-2xl px-4 py-2.5 shadow-lg ${isOwn
+                                    onClick={() => messageSelectionMode ? toggleMessageSelection(msg.id!) : null}
+                                    onContextMenu={(e) => {
+                                        e.preventDefault();
+                                        setMessageSelectionMode(true);
+                                        setSelectedMessageIds((prev) => new Set(prev).add(msg.id!));
+                                    }}
+                                    className={`relative max-w-[70%] rounded-2xl px-4 py-2.5 shadow-lg cursor-pointer ${isOwn
                                         ? "bg-gradient-to-br from-[#00a884] to-[#008f72] text-white rounded-br-sm"
                                         : "bg-[#1f2c34] text-white rounded-bl-sm"
-                                        }`}
+                                        } ${selectedMessageIds.has(msg.id!) ? "ring-2 ring-white/50 bg-opacity-80" : ""}`}
                                 >
+                                    {/* Quoted Reply */}
+                                    {msg.replyToId && (
+                                        <div className={`mb-2 rounded-lg p-2 text-sm border-l-4 ${isOwn ? "bg-black/20 border-white/50" : "bg-black/20 border-[#00a884]"}`}>
+                                            <div className={`text-xs font-medium mb-1 ${isOwn ? "text-white/80" : "text-[#00a884]"}`}>
+                                                {msg.replyToSender === myMobile ? "You" : msg.replyToSender || "Someone"}
+                                            </div>
+                                            <div className="truncate opacity-80">{msg.replyToContent || "Message"}</div>
+                                        </div>
+                                    )}
                                     {msg.type === "CHAT" && <p className="text-sm leading-relaxed">{msg.content}</p>}
                                     {msg.type === "FILE" && msg.fileContent && (
                                         <img
@@ -610,40 +707,57 @@ export default function DesktopChats() {
             )}
 
             {/* Input */}
-            <form onSubmit={handleSend} className="px-6 py-4 border-t border-white/5 flex items-center gap-3 bg-[#111827]/30">
-                <button
-                    type="button"
-                    onClick={() => setShowEmoji((s) => !s)}
-                    className="p-2 rounded-full text-[#8696a0] hover:bg-white/10 hover:text-[#00a884] transition"
-                >
-                    <Smile className="w-5 h-5" />
-                </button>
-                <label className="p-2 rounded-full text-[#8696a0] hover:bg-white/10 hover:text-[#00a884] transition cursor-pointer">
+            <form onSubmit={handleSend} className="bg-[#111827]/30 border-t border-white/5 flex flex-col">
+                {replyToMessage && (
+                    <div className="px-6 py-2 bg-[#1f2c34] border-l-4 border-[#00a884] flex items-center justify-between animate-fade-in relative z-10">
+                        <div className="overflow-hidden">
+                            <div className="text-[#00a884] text-sm font-medium mb-0.5">
+                                Replying to {replyToMessage.sender === myMobile ? "yourself" : replyToMessage.sender}
+                            </div>
+                            <div className="text-[#8696a0] text-sm truncate">
+                                {replyToMessage.content || "Media"}
+                            </div>
+                        </div>
+                        <button type="button" onClick={handleCancelReply} className="p-1 rounded-full bg-[#374248] text-[#8696a0]">
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                )}
+                <div className="px-6 py-4 flex items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={() => setShowEmoji((s) => !s)}
+                        className="p-2 rounded-full text-[#8696a0] hover:bg-white/10 hover:text-[#00a884] transition"
+                    >
+                        <Smile className="w-5 h-5" />
+                    </button>
+                    <label className="p-2 rounded-full text-[#8696a0] hover:bg-white/10 hover:text-[#00a884] transition cursor-pointer">
+                        <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFileUpload}
+                            className="hidden"
+                            disabled={!connected || sendingFile}
+                        />
+                        <Paperclip className="w-5 h-5" />
+                    </label>
                     <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleFileUpload}
-                        className="hidden"
-                        disabled={!connected || sendingFile}
+                        ref={inputRef}
+                        type="text"
+                        value={inputMessage}
+                        onChange={(e) => handleInputChange(e.target.value)}
+                        placeholder="Type a message..."
+                        className="flex-1 bg-[#2a3942] border border-transparent rounded-2xl px-4 py-2.5 text-white text-sm placeholder-[#8696a0] focus:outline-none focus:ring-1 focus:ring-[#00a884]/50"
+                        disabled={!connected}
                     />
-                    <Paperclip className="w-5 h-5" />
-                </label>
-                <input
-                    ref={inputRef}
-                    type="text"
-                    value={inputMessage}
-                    onChange={(e) => handleInputChange(e.target.value)}
-                    placeholder="Type a message..."
-                    className="flex-1 bg-[#2a3942] border border-transparent rounded-2xl px-4 py-2.5 text-white text-sm placeholder-[#8696a0] focus:outline-none focus:ring-1 focus:ring-[#00a884]/50"
-                    disabled={!connected}
-                />
-                <button
-                    type="submit"
-                    disabled={!connected || !inputMessage.trim()}
-                    className="p-2.5 rounded-full bg-[#00a884] text-white disabled:opacity-50 hover:bg-[#06cf9c] transition shadow-lg"
-                >
-                    <Send className="w-5 h-5" />
-                </button>
+                    <button
+                        type="submit"
+                        disabled={!connected || !inputMessage.trim()}
+                        className="p-2.5 rounded-full bg-[#00a884] text-white disabled:opacity-50 hover:bg-[#06cf9c] transition shadow-lg"
+                    >
+                        <Send className="w-5 h-5" />
+                    </button>
+                </div>
             </form>
             {sendingFile && <p className="text-center text-xs text-[#8696a0] py-1">Sending…</p>}
         </div>

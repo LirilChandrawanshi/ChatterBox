@@ -22,11 +22,16 @@ public class ChatMessageDocument {
     private String fileType;
     private long timestamp;
 
+    // Reply-to-message fields
+    private String replyToId;
+    private String replyToContent;
+    private String replyToSender;
+
     public ChatMessageDocument() {
     }
 
     public ChatMessageDocument(String conversationId, Entity.MessageType type, String content, String sender,
-                               String fileContent, String fileType, long timestamp) {
+            String fileContent, String fileType, long timestamp) {
         this.conversationId = conversationId;
         this.type = type;
         this.content = content;
@@ -37,15 +42,18 @@ public class ChatMessageDocument {
     }
 
     public static ChatMessageDocument fromEntity(Entity entity) {
-        return new ChatMessageDocument(
+        ChatMessageDocument doc = new ChatMessageDocument(
                 entity.getConversationId(),
                 entity.getType(),
                 entity.getContent(),
                 entity.getSender(),
                 entity.getFileContent(),
                 entity.getFileType(),
-                entity.getTimestamp()
-        );
+                entity.getTimestamp());
+        doc.setReplyToId(entity.getReplyToId());
+        doc.setReplyToContent(entity.getReplyToContent());
+        doc.setReplyToSender(entity.getReplyToSender());
+        return doc;
     }
 
     public Entity toEntity() {
@@ -58,6 +66,9 @@ public class ChatMessageDocument {
         entity.setFileContent(fileContent);
         entity.setFileType(fileType);
         entity.setTimestamp(timestamp);
+        entity.setReplyToId(replyToId);
+        entity.setReplyToContent(replyToContent);
+        entity.setReplyToSender(replyToSender);
         return entity;
     }
 
@@ -123,5 +134,29 @@ public class ChatMessageDocument {
 
     public void setConversationId(String conversationId) {
         this.conversationId = conversationId;
+    }
+
+    public String getReplyToId() {
+        return replyToId;
+    }
+
+    public void setReplyToId(String replyToId) {
+        this.replyToId = replyToId;
+    }
+
+    public String getReplyToContent() {
+        return replyToContent;
+    }
+
+    public void setReplyToContent(String replyToContent) {
+        this.replyToContent = replyToContent;
+    }
+
+    public String getReplyToSender() {
+        return replyToSender;
+    }
+
+    public void setReplyToSender(String replyToSender) {
+        this.replyToSender = replyToSender;
     }
 }
