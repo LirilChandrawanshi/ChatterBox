@@ -49,6 +49,11 @@ Your backend is already configured. Ensure you have:
 ### Step 3: Get Your Backend URL
 After deployment, you'll get a URL like: `https://chatterbox-backend.onrender.com`
 
+### Troubleshooting: "Timed Out" on deploy
+If the deploy shows **Timed Out** even though the app eventually starts (e.g. "Started ChatBotApplication in 68 seconds"):
+- The production profile uses **lazy initialization** so the server starts listening sooner and the health check can pass within Render's window.
+- If it still times out, in the **Render Dashboard** go to your Web Service → **Settings** → **Health Check** (or **Advanced**). Increase the **Deploy timeout** (or health check timeout) to **120** or **180** seconds so slow cold starts (e.g. MongoDB Atlas) have time to finish.
+
 ---
 
 ## Frontend Deployment (Vercel)
