@@ -10,9 +10,7 @@ import java.util.List;
 @Repository
 public interface ChatMessageRepository extends MongoRepository<ChatMessageDocument, String> {
 
-    /**
-     * Find the most recent messages, ordered by timestamp descending.
-     * Used to load message history for new users.
-     */
     List<ChatMessageDocument> findByOrderByTimestampDesc(Pageable pageable);
+
+    List<ChatMessageDocument> findByConversationIdOrderByTimestampDesc(String conversationId, Pageable pageable);
 }

@@ -1,46 +1,44 @@
 package com.example.ChatBot.controller;
 
-import com.example.ChatBot.model.Entity;
+import com.example.ChatBot.service.PresenceService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
-import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionConnectedEvent;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
+import java.security.Principal;
 
 @Component
 public class SocketEventListener {
 
     private static final Logger logger = LoggerFactory.getLogger(SocketEventListener.class);
 
-    @Autowired
-    private SimpMessageSendingOperations messagingTemplate;
+    private final PresenceService presenceService;
+
+    public SocketEventListener(PresenceService presenceService) {
+        this.presenceService = presenceService;
+    }
 
     @EventListener
     public void handleWebSocketConnectListener(SessionConnectedEvent event) {
-        logger.info("Received a new web socket connection");
+        StompHeaderAccessor accessor = StompHeaderAccessor.wrap(event.getMessage());
+        Principal principal = accessor.getUser();
+        if (principal != null && !"anonymous".equals(principal.getName())) {
+            presenceService.setOnline(principal.getName());
+            logger.info("User connected: {}", principal.getName());
+        }
     }
 
     @EventListener
     public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
-        StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
-
-        var sessionAttributes = headerAccessor.getSessionAttributes();
-        if (sessionAttributes != null) {
-            String username = (String) sessionAttributes.get("username");
-            if (username != null) {
-                logger.info("User Disconnected : " + username);
-
-                Entity chatMessage = new Entity();
-                chatMessage.setType(Entity.MessageType.LEAVE);
-                chatMessage.setSender(username);
-
-                messagingTemplate.convertAndSend("/topic/public", chatMessage);
-            }
+        StompHeaderAccessor accessor = StompHeaderAccessor.wrap(event.getMessage());
+        Principal principal = accessor.getUser();
+        if (principal != null) {
+            presenceService.setOffline(principal.getName());
+            logger.info("User disconnected: {}", principal.getName());
         }
     }
 }

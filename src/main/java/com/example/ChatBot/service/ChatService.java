@@ -17,14 +17,15 @@ public class ChatService {
     private static final int DEFAULT_HISTORY_LIMIT = 50;
 
     private final ChatMessageRepository repository;
+    private final ConversationService conversationService;
 
-    public ChatService(ChatMessageRepository repository) {
+    public ChatService(ChatMessageRepository repository, ConversationService conversationService) {
         this.repository = repository;
+        this.conversationService = conversationService;
     }
 
     /**
-     * Persist a chat message if it's a CHAT or FILE type.
-     * JOIN, LEAVE, TYPING are not stored.
+     * Persist a chat message if it's a CHAT or FILE type (with conversationId).
      * @return the saved document's id, or null if not persisted
      */
     public String saveIfPersistable(Entity message) {
@@ -32,8 +33,11 @@ public class ChatService {
         if (message.getType() != Entity.MessageType.CHAT && message.getType() != Entity.MessageType.FILE) {
             return null;
         }
+        if (message.getConversationId() == null) return null;
         ChatMessageDocument doc = ChatMessageDocument.fromEntity(message);
         ChatMessageDocument saved = repository.save(doc);
+        String preview = message.getType() == Entity.MessageType.FILE ? "Photo" : (message.getContent() != null ? message.getContent() : "");
+        conversationService.updateLastMessage(message.getConversationId(), preview);
         return saved.getId();
     }
 
@@ -47,8 +51,22 @@ public class ChatService {
     }
 
     /**
-     * Get recent message history (oldest first for display).
-     * Returns up to 50 most recent CHAT/FILE messages.
+     * Get recent message history for a conversation (oldest first for display).
+     */
+    public List<Entity> getMessagesByConversationId(String conversationId, int limit) {
+        if (conversationId == null) return List.of();
+        if (limit <= 0) limit = DEFAULT_HISTORY_LIMIT;
+        var pageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "timestamp"));
+        List<ChatMessageDocument> docs = repository.findByConversationIdOrderByTimestampDesc(conversationId, pageable);
+        List<Entity> entities = docs.stream()
+                .map(ChatMessageDocument::toEntity)
+                .collect(Collectors.toList());
+        Collections.reverse(entities);
+        return entities;
+    }
+
+    /**
+     * Legacy: get recent messages without conversation (old public room).
      */
     public List<Entity> getRecentMessages(int limit) {
         if (limit <= 0) limit = DEFAULT_HISTORY_LIMIT;
@@ -57,7 +75,7 @@ public class ChatService {
         List<Entity> entities = docs.stream()
                 .map(ChatMessageDocument::toEntity)
                 .collect(Collectors.toList());
-        Collections.reverse(entities); // Oldest first for display
+        Collections.reverse(entities);
         return entities;
     }
 }

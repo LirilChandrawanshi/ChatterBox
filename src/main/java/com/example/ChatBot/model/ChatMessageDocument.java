@@ -13,6 +13,8 @@ public class ChatMessageDocument {
     @Id
     private String id;
 
+    private String conversationId;
+
     private Entity.MessageType type;
     private String content;
     private String sender;
@@ -23,8 +25,9 @@ public class ChatMessageDocument {
     public ChatMessageDocument() {
     }
 
-    public ChatMessageDocument(Entity.MessageType type, String content, String sender,
+    public ChatMessageDocument(String conversationId, Entity.MessageType type, String content, String sender,
                                String fileContent, String fileType, long timestamp) {
+        this.conversationId = conversationId;
         this.type = type;
         this.content = content;
         this.sender = sender;
@@ -35,6 +38,7 @@ public class ChatMessageDocument {
 
     public static ChatMessageDocument fromEntity(Entity entity) {
         return new ChatMessageDocument(
+                entity.getConversationId(),
                 entity.getType(),
                 entity.getContent(),
                 entity.getSender(),
@@ -47,6 +51,7 @@ public class ChatMessageDocument {
     public Entity toEntity() {
         Entity entity = new Entity();
         entity.setId(id);
+        entity.setConversationId(conversationId);
         entity.setType(type);
         entity.setContent(content);
         entity.setSender(sender);
@@ -110,5 +115,13 @@ public class ChatMessageDocument {
 
     public void setTimestamp(long timestamp) {
         this.timestamp = timestamp;
+    }
+
+    public String getConversationId() {
+        return conversationId;
+    }
+
+    public void setConversationId(String conversationId) {
+        this.conversationId = conversationId;
     }
 }

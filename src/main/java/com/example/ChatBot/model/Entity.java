@@ -9,14 +9,17 @@ public class Entity {
     /** Set for persisted messages (CHAT/FILE); null for ephemeral messages. */
     private String id;
 
+    /** Conversation id for 1:1 chats. */
+    private String conversationId;
+
     @NotNull(message = "Message type is required")
     private MessageType type;
     
     @Size(max = 2000, message = "Content must not exceed 2000 characters")
     private String content;
     
-    @NotBlank(message = "Sender name is required")
-    @Size(min = 2, max = 50, message = "Sender name must be between 2 and 50 characters")
+    @NotBlank(message = "Sender is required")
+    @Size(min = 1, max = 50, message = "Sender must be between 1 and 50 characters")
     private String sender;
     
     @Size(max = 10485760, message = "File content must not exceed 10MB (base64 encoded)")
@@ -89,5 +92,13 @@ public class Entity {
 
     public void setId(String id) {
         this.id = id;
+    }
+
+    public String getConversationId() {
+        return conversationId;
+    }
+
+    public void setConversationId(String conversationId) {
+        this.conversationId = conversationId;
     }
 }

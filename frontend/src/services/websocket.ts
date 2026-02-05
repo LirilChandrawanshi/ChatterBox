@@ -1,176 +1,101 @@
-import { Client, IMessage } from '@stomp/stompjs'
-import SockJS from 'sockjs-client'
+import { Client, IMessage } from "@stomp/stompjs";
+import SockJS from "sockjs-client";
 
 export interface ChatMessage {
-  id?: string
-  type: 'CHAT' | 'JOIN' | 'LEAVE' | 'TYPING' | 'FILE' | 'DELETED'
-  content?: string
-  sender: string
-  fileContent?: string
-  fileType?: string
-  timestamp?: number
-  /** Set when type is DELETED: ids of removed messages */
-  messageIds?: string[]
+  id?: string;
+  type: "CHAT" | "JOIN" | "LEAVE" | "TYPING" | "FILE" | "DELETED";
+  content?: string;
+  sender: string;
+  conversationId?: string;
+  fileContent?: string;
+  fileType?: string;
+  timestamp?: number;
+  messageIds?: string[];
 }
 
 export class WebSocketService {
-  private stompClient: Client | null = null
-  private connected: boolean = false
-  private username: string = ''
-  private messageCallback: ((message: ChatMessage) => void) | null = null
-  private connectionCallback: ((connected: boolean) => void) | null = null
+  private stompClient: Client | null = null;
+  private connected = false;
+  private mobile = "";
+  private messageCallback: ((message: ChatMessage) => void) | null = null;
+  private connectionCallback: ((connected: boolean) => void) | null = null;
 
-  connect(username: string, onConnected: () => void, onError: (error: any) => void) {
-    this.username = username
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:8080/ws'
-    
-    // Block mixed content: HTTPS page cannot connect to HTTP WebSocket
-    if (typeof window !== 'undefined' && window.location.protocol === 'https:' && wsUrl.startsWith('http:')) {
-      const msg = 'WebSocket URL must use HTTPS in production. Set NEXT_PUBLIC_WS_URL to https://your-backend.up.railway.app/ws in Vercel → Environment Variables, then redeploy.'
-      console.error(msg)
-      onError({ message: msg })
-      return
+  connect(
+    mobile: string,
+    onConnected: () => void,
+    onError: (error: unknown) => void
+  ) {
+    this.mobile = mobile.replace(/[^0-9]/g, "");
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:8080/ws";
+    const urlWithMobile = `${wsUrl}?mobile=${encodeURIComponent(this.mobile)}`;
+
+    if (
+      typeof window !== "undefined" &&
+      window.location.protocol === "https:" &&
+      wsUrl.startsWith("http:")
+    ) {
+      const msg =
+        "WebSocket URL must use HTTPS in production. Set NEXT_PUBLIC_WS_URL.";
+      console.error(msg);
+      onError({ message: msg });
+      return;
     }
 
-    console.log('Creating WebSocket connection to:', wsUrl)
-    console.log('Username:', username)
-
-    // Create STOMP client
     this.stompClient = new Client({
-      webSocketFactory: () => {
-        console.log('Creating SockJS connection...')
-        return new SockJS(wsUrl) as any
-      },
-      debug: (str) => {
-        console.log('STOMP:', str)
-      },
+      webSocketFactory: () => new SockJS(urlWithMobile) as unknown as WebSocket,
+      debug: (str) => console.log("STOMP:", str),
       reconnectDelay: 5000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
-    })
+    });
 
-    // On connect
     this.stompClient.onConnect = () => {
-      this.connected = true
-      this.connectionCallback?.(true)
-      
-      // Subscribe to public channel
-      this.stompClient?.subscribe('/topic/public', (message: IMessage) => {
-        const chatMessage = JSON.parse(message.body) as ChatMessage
-        this.messageCallback?.(chatMessage)
-      })
+      this.connected = true;
+      this.connectionCallback?.(true);
+      this.stompClient?.subscribe("/user/queue/messages", (message: IMessage) => {
+        const chatMessage = JSON.parse(message.body) as ChatMessage;
+        this.messageCallback?.(chatMessage);
+      });
+      onConnected();
+    };
 
-      // Send join message
-      this.sendJoinMessage()
-      onConnected()
-    }
-
-    // On error
     this.stompClient.onStompError = (frame) => {
-      this.connected = false
-      this.connectionCallback?.(false)
-      onError(frame)
-    }
+      this.connected = false;
+      this.connectionCallback?.(false);
+      onError(frame);
+    };
 
-    // On disconnect
     this.stompClient.onDisconnect = () => {
-      this.connected = false
-      this.connectionCallback?.(false)
-    }
+      this.connected = false;
+      this.connectionCallback?.(false);
+    };
 
-    // Activate the connection
-    this.stompClient.activate()
+    this.stompClient.activate();
   }
 
   disconnect() {
     if (this.stompClient && this.connected) {
-      this.stompClient.deactivate()
-      this.connected = false
-      this.connectionCallback?.(false)
-    }
-  }
-
-  sendMessage(content: string) {
-    if (this.stompClient && this.connected) {
-      const chatMessage: ChatMessage = {
-        sender: this.username,
-        content: content,
-        type: 'CHAT',
-      }
-      this.stompClient.publish({
-        destination: '/app/chat.sendMessage',
-        body: JSON.stringify(chatMessage),
-      })
-    }
-  }
-
-  sendTyping() {
-    if (this.stompClient && this.connected) {
-      const typingMessage: ChatMessage = {
-        sender: this.username,
-        type: 'TYPING',
-      }
-      this.stompClient.publish({
-        destination: '/app/chat.typing',
-        body: JSON.stringify(typingMessage),
-      })
-    }
-  }
-
-  sendFile(fileContent: string, fileType: string) {
-    if (this.stompClient && this.connected) {
-      const fileMessage: ChatMessage = {
-        sender: this.username,
-        fileContent: fileContent,
-        fileType: fileType,
-        type: 'FILE',
-      }
-      
-      const messageBody = JSON.stringify(fileMessage)
-      const messageSizeKB = (messageBody.length / 1024).toFixed(2)
-      console.log(`Sending file message: ${messageSizeKB}KB`)
-      
-      try {
-        this.stompClient.publish({
-          destination: '/app/chat.sendFile',
-          body: messageBody,
-        })
-        console.log('File sent successfully')
-      } catch (error) {
-        console.error('Error sending file:', error)
-        throw error
-      }
-    }
-  }
-
-  private sendJoinMessage() {
-    if (this.stompClient && this.connected) {
-      const joinMessage: ChatMessage = {
-        sender: this.username,
-        type: 'JOIN',
-      }
-      this.stompClient.publish({
-        destination: '/app/chat.addUser',
-        body: JSON.stringify(joinMessage),
-      })
+      this.stompClient.deactivate();
+      this.connected = false;
+      this.connectionCallback?.(false);
     }
   }
 
   onMessage(callback: (message: ChatMessage) => void) {
-    this.messageCallback = callback
+    this.messageCallback = callback;
   }
 
   onConnectionChange(callback: (connected: boolean) => void) {
-    this.connectionCallback = callback
+    this.connectionCallback = callback;
   }
 
   isConnected(): boolean {
-    return this.connected
+    return this.connected;
   }
 
-  getUsername(): string {
-    return this.username
+  getMobile(): string {
+    return this.mobile;
   }
 }
 
-export const wsService = new WebSocketService()
+export const wsService = new WebSocketService();

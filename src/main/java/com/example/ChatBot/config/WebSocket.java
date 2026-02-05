@@ -24,6 +24,7 @@ public class WebSocket implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(@NonNull StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
+                .setHandshakeHandler(new UserHandshakeHandler())
                 .setAllowedOriginPatterns(
                         "http://localhost:3000",
                         "http://localhost:8080",
