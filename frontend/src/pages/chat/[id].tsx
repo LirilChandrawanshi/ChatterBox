@@ -10,17 +10,9 @@ import {
   getConversation,
 } from "@/services/api";
 import { getStoredUser } from "../index";
+import { getEmojiList } from "@/utils/emojis";
 
-const EMOJI_LIST = [
-  "😀", "😃", "😄", "😁", "😅", "😂", "🤣", "😊", "🥰", "😍",
-  "🤩", "😘", "🥲", "😗", "😚", "😙", "😋", "😛", "😜", "🤪",
-  "😝", "🤑", "🤗", "🤭", "🤫", "🤔", "😐", "😑", "😶", "🙄",
-  "😏", "😣", "😥", "😮", "🤐", "😯", "😪", "😫", "😴", "🤤",
-  "😷", "🤒", "🤕", "🤢", "🤮", "🤧", "🥵", "🥶", "👍", "👎",
-  "👏", "🙌", "🤝", "🙏", "❤️", "🧡", "💛", "💚", "💙", "💜",
-  "🖤", "🤍", "💔", "❣️", "💕", "💞", "💓", "💗", "💖", "💘",
-  "🔥", "⭐", "✨", "💫", "🌟", "💯", "🎉", "🎊", "🙈", "🙉", "🙊",
-];
+const EMOJI_LIST = getEmojiList();
 
 export default function ConversationPage() {
   const router = useRouter();
@@ -242,7 +234,7 @@ export default function ConversationPage() {
         {/* Emoji picker */}
         {showEmoji && (
           <div className="border-t border-[#2a3942] bg-[#1f2c34] p-3 animate-fade-in">
-            <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+            <div className="flex flex-wrap gap-1.5 max-h-44 overflow-y-auto">
               {EMOJI_LIST.map((emoji, i) => (
                 <button
                   key={i}
