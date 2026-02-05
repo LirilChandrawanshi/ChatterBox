@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
-import { MessageCircle, Lightbulb, Settings } from "lucide-react";
+import { MessageCircle, Disc, Users, Settings } from "lucide-react";
 
-type TabId = "think" | "chats" | "settings";
+type TabId = "chats" | "status" | "community" | "settings";
 
 interface Tab {
     id: TabId;
@@ -20,21 +20,27 @@ export default function BottomNav({ activeTab, mobile }: BottomNavProps) {
 
     const tabs: Tab[] = [
         {
-            id: "think",
-            label: "Think",
-            icon: <Lightbulb className="w-6 h-6" />,
-            path: "/think",
-        },
-        {
             id: "chats",
             label: "Chats",
-            icon: <MessageCircle className="w-6 h-6" />,
+            icon: <MessageCircle className="w-5 h-5" />,
             path: "/chats",
+        },
+        {
+            id: "status",
+            label: "Status",
+            icon: <Disc className="w-5 h-5" />,
+            path: "/status",
+        },
+        {
+            id: "community",
+            label: "Community",
+            icon: <Users className="w-5 h-5" />,
+            path: "/community",
         },
         {
             id: "settings",
             label: "Settings",
-            icon: <Settings className="w-6 h-6" />,
+            icon: <Settings className="w-5 h-5" />,
             path: "/settings",
         },
     ];
@@ -53,9 +59,9 @@ export default function BottomNav({ activeTab, mobile }: BottomNavProps) {
                             key={tab.id}
                             type="button"
                             onClick={() => handleTabClick(tab)}
-                            className={`flex flex-col items-center py-3 px-6 transition-all duration-200 ${isActive
-                                    ? "text-[#00a884]"
-                                    : "text-[#8696a0] hover:text-white"
+                            className={`flex flex-col items-center py-2.5 px-4 transition-all duration-200 ${isActive
+                                ? "text-[#00a884]"
+                                : "text-[#8696a0] hover:text-white"
                                 }`}
                         >
                             <div
@@ -68,7 +74,7 @@ export default function BottomNav({ activeTab, mobile }: BottomNavProps) {
                                 )}
                             </div>
                             <span
-                                className={`text-xs mt-1 font-medium transition-all duration-200 ${isActive ? "opacity-100" : "opacity-70"
+                                className={`text-[10px] mt-1 font-medium transition-all duration-200 ${isActive ? "opacity-100" : "opacity-70"
                                     }`}
                             >
                                 {tab.label}

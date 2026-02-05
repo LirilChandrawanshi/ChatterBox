@@ -211,8 +211,8 @@ export default function DesktopChats() {
             } else {
                 setNewChatError("Could not create conversation");
             }
-        } catch {
-            setNewChatError("Failed to start chat");
+        } catch (err: unknown) {
+            setNewChatError(err instanceof Error ? err.message : "Failed to start chat");
         }
         setCreating(false);
     };

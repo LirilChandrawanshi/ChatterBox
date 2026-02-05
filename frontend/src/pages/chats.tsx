@@ -85,8 +85,8 @@ export default function Chats() {
       setShowNewChat(false);
       setNewContactMobile("");
       router.push(`/chat/${conv.id}?mobile=${encodeURIComponent(myMobile)}`);
-    } catch {
-      setNewChatError("Could not start conversation");
+    } catch (err: unknown) {
+      setNewChatError(err instanceof Error ? err.message : "Could not start conversation");
     } finally {
       setCreating(false);
     }

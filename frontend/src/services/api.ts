@@ -118,7 +118,19 @@ export async function getOrCreateConversation(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ otherUserMobile: otherUserMobile.trim() }),
   });
-  if (!res.ok) throw new Error("Failed to start conversation");
+  if (!res.ok) {
+    // Try to extract error message from response
+    let errorMessage = "Failed to start conversation";
+    try {
+      const errorData = await res.json();
+      if (errorData.error) {
+        errorMessage = errorData.error;
+      }
+    } catch {
+      // If parsing fails, use generic message
+    }
+    throw new Error(errorMessage);
+  }
   return res.json();
 }
 
@@ -252,4 +264,142 @@ export async function deleteConversation(conversationId: string, mobile: string)
 
 export async function deleteMultipleConversations(conversationIds: string[], mobile: string): Promise<boolean[]> {
   return Promise.all(conversationIds.map((id) => deleteConversation(id, mobile)));
+}
+
+// ==================== STATUS API ====================
+
+export interface StatusItem {
+  id: string;
+  userMobile: string;
+  userName: string;
+  content: string;
+  imageBase64?: string;
+  imageType?: string;
+  createdAt: number;
+  expiresAt: number;
+  viewedBy: string[];
+}
+
+export interface UserStatuses {
+  userMobile: string;
+  userName: string;
+  statuses: StatusItem[];
+  isOwn: boolean;
+}
+
+export async function createStatus(
+  mobile: string,
+  data: { content?: string; imageBase64?: string; imageType?: string }
+): Promise<StatusItem> {
+  const res = await fetch(`${getBase()}/api/status?mobile=${encodeURIComponent(mobile)}`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to create status");
+  return res.json();
+}
+
+export async function getStatuses(mobile: string): Promise<UserStatuses[]> {
+  const res = await fetch(`${getBase()}/api/status?mobile=${encodeURIComponent(mobile)}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function getMyStatuses(mobile: string): Promise<StatusItem[]> {
+  const res = await fetch(`${getBase()}/api/status/my?mobile=${encodeURIComponent(mobile)}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function viewStatus(statusId: string, mobile: string): Promise<void> {
+  await fetch(`${getBase()}/api/status/${statusId}/view?mobile=${encodeURIComponent(mobile)}`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+}
+
+export async function deleteStatus(statusId: string, mobile: string): Promise<boolean> {
+  const res = await fetch(`${getBase()}/api/status/${statusId}?mobile=${encodeURIComponent(mobile)}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return res.ok;
+}
+
+// ==================== COMMUNITY API ====================
+
+export interface CommentItem {
+  authorMobile: string;
+  authorName: string;
+  content: string;
+  createdAt: number;
+}
+
+export interface CommunityPost {
+  id: string;
+  authorMobile: string;
+  authorName: string;
+  content: string;
+  imageBase64?: string;
+  imageType?: string;
+  createdAt: number;
+  likes: string[];
+  comments: CommentItem[];
+}
+
+export async function createCommunityPost(
+  mobile: string,
+  data: { content?: string; imageBase64?: string; imageType?: string }
+): Promise<CommunityPost> {
+  const res = await fetch(`${getBase()}/api/community?mobile=${encodeURIComponent(mobile)}`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to create post");
+  return res.json();
+}
+
+export async function getCommunityPosts(): Promise<CommunityPost[]> {
+  const res = await fetch(`${getBase()}/api/community`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function togglePostLike(postId: string, mobile: string): Promise<CommunityPost> {
+  const res = await fetch(`${getBase()}/api/community/${postId}/like?mobile=${encodeURIComponent(mobile)}`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error("Failed to like post");
+  return res.json();
+}
+
+export async function addPostComment(
+  postId: string,
+  mobile: string,
+  content: string
+): Promise<CommunityPost> {
+  const res = await fetch(`${getBase()}/api/community/${postId}/comment?mobile=${encodeURIComponent(mobile)}`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) throw new Error("Failed to add comment");
+  return res.json();
+}
+
+export async function deleteCommunityPost(postId: string, mobile: string): Promise<boolean> {
+  const res = await fetch(`${getBase()}/api/community/${postId}?mobile=${encodeURIComponent(mobile)}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return res.ok;
 }

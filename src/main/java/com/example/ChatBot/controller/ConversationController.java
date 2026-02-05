@@ -66,6 +66,15 @@ public class ConversationController {
         if (other == null || other.isBlank()) {
             return ResponseEntity.badRequest().build();
         }
+
+        // Check if other user exists in the database
+        UserDocument otherUser = userService.findByMobile(other);
+        if (otherUser == null) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "User not found with mobile number: " + other);
+            return ResponseEntity.status(404).body(error);
+        }
+
         ConversationDocument conv = conversationService.getOrCreate(mobile, other);
         Map<String, Object> response = new HashMap<>();
         response.put("id", conv.getId());
@@ -74,9 +83,9 @@ public class ConversationController {
         response.put("lastMessageAt", conv.getLastMessageAt());
         response.put("lastMessagePreview", conv.getLastMessagePreview());
         String otherMobile = conv.getOtherParticipant(mobile);
-        UserDocument otherUser = userService.findByMobile(otherMobile);
         response.put("otherParticipantMobile", otherMobile);
-        response.put("otherParticipantName", otherUser != null ? otherUser.getDisplayName() : otherMobile);
+        response.put("otherParticipantName",
+                otherUser.getDisplayName() != null ? otherUser.getDisplayName() : otherMobile);
         return ResponseEntity.ok(response);
     }
 
