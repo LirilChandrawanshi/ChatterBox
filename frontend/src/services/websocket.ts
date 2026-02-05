@@ -96,6 +96,42 @@ export class WebSocketService {
   getMobile(): string {
     return this.mobile;
   }
+
+  sendMessage(content: string) {
+    if (!this.connected || !this.stompClient) return;
+    this.stompClient.publish({
+      destination: "/app/chat.sendMessage",
+      body: JSON.stringify({
+        type: "CHAT",
+        sender: this.mobile,
+        content,
+      }),
+    });
+  }
+
+  sendTyping() {
+    if (!this.connected || !this.stompClient) return;
+    this.stompClient.publish({
+      destination: "/app/chat.typing",
+      body: JSON.stringify({
+        type: "TYPING",
+        sender: this.mobile,
+      }),
+    });
+  }
+
+  sendFile(fileContent: string, fileType: string) {
+    if (!this.connected || !this.stompClient) return;
+    this.stompClient.publish({
+      destination: "/app/chat.sendFile",
+      body: JSON.stringify({
+        type: "FILE",
+        sender: this.mobile,
+        fileContent,
+        fileType,
+      }),
+    });
+  }
 }
 
 export const wsService = new WebSocketService();
