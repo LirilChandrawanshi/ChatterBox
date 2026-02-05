@@ -1,12 +1,12 @@
 import { ReactNode, useState, useEffect } from "react";
 import { useRouter } from "next/router";
-import { MessageCircle, Disc, Users, Settings } from "lucide-react";
+import { MessageCircle, Disc, Users, Settings, UsersRound } from "lucide-react";
 
 interface DesktopLayoutProps {
     sidebar: ReactNode;
     main: ReactNode;
     showMain?: boolean;
-    activeSection?: "chats" | "status" | "community" | "settings";
+    activeSection?: "chats" | "status" | "community" | "groups" | "settings";
 }
 
 /**
@@ -14,7 +14,12 @@ interface DesktopLayoutProps {
  * Shows icon nav + sidebar + main panel on desktop, single view on mobile
  */
 export default function DesktopLayout({ sidebar, main, showMain = true, activeSection = "chats" }: DesktopLayoutProps) {
-    const [isDesktop, setIsDesktop] = useState(false);
+    const [isDesktop, setIsDesktop] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return window.innerWidth >= 1024;
+        }
+        return false;
+    });
     const router = useRouter();
     const { mobile } = router.query;
     const myMobile = typeof mobile === "string" ? mobile : "";
@@ -30,6 +35,7 @@ export default function DesktopLayout({ sidebar, main, showMain = true, activeSe
         { id: "chats", icon: MessageCircle, label: "Chats", path: "/desktop" },
         { id: "status", icon: Disc, label: "Status", path: "/status" },
         { id: "community", icon: Users, label: "Community", path: "/community" },
+        { id: "groups", icon: UsersRound, label: "Groups", path: "/groups" },
         { id: "settings", icon: Settings, label: "Settings", path: "/settings" },
     ];
 
@@ -58,7 +64,7 @@ export default function DesktopLayout({ sidebar, main, showMain = true, activeSe
                     {/* Left Icon Navigation Sidebar */}
                     <div className="w-16 h-full flex-shrink-0 bg-[#0d1117] border-r border-white/5 flex flex-col py-4">
                         <div className="flex-1 flex flex-col items-center gap-2">
-                            {navItems.slice(0, 3).map((item) => {
+                            {navItems.slice(0, 4).map((item) => {
                                 const Icon = item.icon;
                                 const isActive = activeSection === item.id;
                                 return (
@@ -67,8 +73,8 @@ export default function DesktopLayout({ sidebar, main, showMain = true, activeSe
                                         type="button"
                                         onClick={() => handleNavClick(item.path)}
                                         className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${isActive
-                                                ? "bg-[#00a884]/20 text-[#00a884]"
-                                                : "text-[#8696a0] hover:bg-white/5 hover:text-white"
+                                            ? "bg-[#00a884]/20 text-[#00a884]"
+                                            : "text-[#8696a0] hover:bg-white/5 hover:text-white"
                                             }`}
                                         title={item.label}
                                     >
@@ -83,8 +89,8 @@ export default function DesktopLayout({ sidebar, main, showMain = true, activeSe
                                 type="button"
                                 onClick={() => handleNavClick("/settings")}
                                 className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${activeSection === "settings"
-                                        ? "bg-[#00a884]/20 text-[#00a884]"
-                                        : "text-[#8696a0] hover:bg-white/5 hover:text-white"
+                                    ? "bg-[#00a884]/20 text-[#00a884]"
+                                    : "text-[#8696a0] hover:bg-white/5 hover:text-white"
                                     }`}
                                 title="Settings"
                             >

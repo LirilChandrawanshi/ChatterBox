@@ -40,6 +40,20 @@ export interface UserProfile {
   profilePicture: string;
 }
 
+export interface Group {
+  id: string;
+  name: string;
+  description?: string;
+  admin: string;
+  members: string[];
+  profilePicture?: string;
+  createdAt: number;
+  lastMessageAt: number;
+  lastMessagePreview?: string;
+  lastMessageSenderName?: string;
+  unreadCount?: number;
+}
+
 export interface ConversationSummary {
   id: string;
   participant1: string;
@@ -48,6 +62,10 @@ export interface ConversationSummary {
   lastMessagePreview: string | null;
   otherParticipantMobile?: string;
   otherParticipantName?: string;
+  // Helper fields for UI if we mix groups
+  isGroup?: boolean;
+  name?: string;
+  unreadCount?: number;
 }
 
 export interface AuthResponse {
@@ -286,6 +304,25 @@ export async function getUserProfile(mobile: string): Promise<UserProfile | null
     headers: authHeaders(),
   });
   if (!res.ok) return null;
+  return res.json();
+}
+
+// Group API
+export async function createGroup(name: string, description: string, adminMobile: string, members: string[]): Promise<Group> {
+  const res = await fetch(`${getBase()}/api/groups`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ name, description, adminMobile, members }),
+  });
+  if (!res.ok) throw new Error("Failed to create group");
+  return res.json();
+}
+
+export async function getMyGroups(mobile: string): Promise<Group[]> {
+  const res = await fetch(`${getBase()}/api/groups?mobile=${encodeURIComponent(mobile)}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error("Failed to fetch groups");
   return res.json();
 }
 

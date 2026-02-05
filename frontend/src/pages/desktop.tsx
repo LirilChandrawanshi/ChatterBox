@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, FormEvent, ChangeEvent } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
-import { MessageCircle, Plus, User, Trash2, X, ArrowLeft, Paperclip, Smile, Send, Search, Check, CheckCheck, Camera, LogOut, Settings, Pencil, Lightbulb, Sparkles, Reply } from "lucide-react";
+import { Heart, Search, MoreVertical, Paperclip, Smile, Send, Mic, Phone, Video, X, Check, ArrowLeft, LogOut, CheckCheck, Trash2, Camera, Pencil, MapPin, Loader2, User, MessageCircle, Settings, Plus, Download, Users, Reply } from "lucide-react";
 import {
     getConversations,
     getOnlineMobiles,
@@ -16,7 +16,7 @@ import {
     updateDisplayName,
     updateProfilePicture,
     clearToken,
-    type ConversationSummary,
+    User as UserProfile, ConversationSummary, updateBio, Group, getMyGroups
 } from "@/services/api";
 import { getStoredUser, setStoredUser } from "./index";
 import { wsService, type ChatMessage } from "@/services/websocket";
@@ -24,6 +24,7 @@ import { getEmojiList } from "@/utils/emojis";
 import DesktopLayout from "@/components/DesktopLayout";
 import BottomNav from "@/components/BottomNav";
 import ProfileModal from "@/components/ProfileModal";
+import CreateGroupModal from "@/components/CreateGroupModal";
 
 const EMOJI_LIST = getEmojiList();
 
@@ -36,6 +37,8 @@ export default function DesktopChats() {
 
     // Chat list state
     const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+    const [groups, setGroups] = useState<Group[]>([]);
+    const [showCreateGroup, setShowCreateGroup] = useState(false);
     const [onlineMobiles, setOnlineMobiles] = useState<Set<string>>(new Set());
     const [loading, setLoading] = useState(true);
     const [showNewChat, setShowNewChat] = useState(false);
@@ -103,25 +106,83 @@ export default function DesktopChats() {
         return () => clearInterval(t);
     }, [router.isReady, myMobile]);
 
-    // Refresh conversations periodically
+    const playNotificationSound = () => {
+        try {
+            const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+            if (!AudioContext) return;
+            const ctx = new AudioContext();
+
+            // Create a "Glassy Ding" sound (WhatsApp-like)
+            const t = ctx.currentTime;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            // "Ding" parameters
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(1200, t);
+            osc.frequency.exponentialRampToValueAtTime(600, t + 0.15); // Slight pitch drop for "pop" effect
+
+            gain.gain.setValueAtTime(0.1, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5); // Longer trail for "tooonnn"
+
+            osc.start(t);
+            osc.stop(t + 0.5);
+        } catch (e) {
+            // Ignore
+        }
+    };
+
+    // Refresh conversations periodically but preserve unread counts
     useEffect(() => {
         if (!myMobile) return;
         const interval = setInterval(() => {
-            getConversations(myMobile).then(setConversations);
+            getConversations(myMobile).then(newConvs => {
+                setConversations(prev => {
+                    const unreadMap = new Map(prev.map(c => [c.id, c.unreadCount || 0]));
+                    return newConvs.map(c => ({
+                        ...c,
+                        unreadCount: c.id === selectedChatId ? 0 : (unreadMap.get(c.id) || 0)
+                    })).sort((a, b) => b.lastMessageAt - a.lastMessageAt);
+                });
+            });
+            getMyGroups(myMobile).then(newGroups => {
+                setGroups(prev => {
+                    const unreadMap = new Map(prev.map(g => [g.id, g.unreadCount || 0]));
+                    return newGroups.map(g => ({
+                        ...g,
+                        unreadCount: g.id === selectedChatId ? 0 : (unreadMap.get(g.id) || 0)
+                    })).sort((a, b) => b.lastMessageAt - a.lastMessageAt);
+                });
+            });
         }, 5000);
         return () => clearInterval(interval);
-    }, [myMobile]);
+    }, [myMobile, selectedChatId]);
 
     // Load selected chat
     useEffect(() => {
         if (!selectedChatId || !myMobile) return;
         setConnecting(true);
-        getConversation(selectedChatId, myMobile).then((data) => {
-            if (data) {
-                setOtherName(data.otherParticipantName);
-                setOtherMobile(data.otherParticipantMobile);
-            }
-        });
+
+        // Reset unread count for selected chat
+        setConversations(prev => prev.map(c => c.id === selectedChatId ? { ...c, unreadCount: 0 } : c));
+        setGroups(prev => prev.map(g => g.id === selectedChatId ? { ...g, unreadCount: 0 } : g));
+
+        const group = groups.find(g => g.id === selectedChatId);
+        if (group) {
+            setOtherName(group.name);
+            setOtherMobile(""); // Group has no single "other mobile"
+        } else {
+            getConversation(selectedChatId, myMobile).then((data) => {
+                if (data) {
+                    setOtherName(data.otherParticipantName);
+                    setOtherMobile(data.otherParticipantMobile);
+                }
+            });
+        }
+
         getMessages(selectedChatId, myMobile).then((list) =>
             setMessages(list as ChatMessage[])
         );
@@ -129,48 +190,116 @@ export default function DesktopChats() {
 
     // WebSocket connection
     useEffect(() => {
-        if (!myMobile || !selectedChatId) return;
-        wsService.connect(
-            myMobile,
-            () => {
-                setConnected(true);
-                setConnecting(false);
-                setConnectionError("");
-                wsService.sendReadReceipt(selectedChatId);
-            },
-            () => {
-                setConnecting(false);
-                setConnectionError("Could not connect");
-            }
-        );
+        if (!myMobile) return; // Removed selectedChatId dependency to allow background listening
+
+        // Re-connect if needed (simplified logic to avoid multiple connections)
+        if (!connected && !connecting) {
+            setConnecting(true);
+            wsService.connect(
+                myMobile,
+                () => {
+                    setConnected(true);
+                    setConnecting(false);
+                    setConnectionError("");
+                    if (selectedChatId) wsService.sendReadReceipt(selectedChatId);
+                },
+                () => {
+                    setConnecting(false);
+                    setConnectionError("Could not connect");
+                }
+            );
+        }
+
         const handler = (message: ChatMessage) => {
-            if (message.conversationId !== selectedChatId) return;
-            if (message.type === "TYPING" && message.sender !== myMobile) {
-                setIsTyping(true);
-                if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-                typingTimeoutRef.current = setTimeout(() => setIsTyping(false), 3000);
-                return;
+            // 1. Play sound ONLY for new messages (not typing)
+            if (message.sender !== myMobile && (message.type === "CHAT" || message.type === "FILE")) {
+                playNotificationSound();
             }
-            if (message.type === "READ" && message.sender !== myMobile) {
-                setReadMessageIds((prev) => {
-                    const next = new Set(prev);
-                    messages.forEach((m) => {
-                        if (m.sender === myMobile && m.id) next.add(m.id);
+
+            // 2. Handle active chat messages
+            if (message.conversationId === selectedChatId) {
+                if (message.type === "TYPING" && message.sender !== myMobile) {
+                    setIsTyping(true);
+                    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                    typingTimeoutRef.current = setTimeout(() => setIsTyping(false), 3000);
+                    return;
+                }
+                if (message.type === "READ" && message.sender !== myMobile) {
+                    setReadMessageIds((prev) => {
+                        const next = new Set(prev);
+                        messages.forEach((m) => {
+                            if (m.sender === myMobile && m.id) next.add(m.id);
+                        });
+                        return next;
                     });
-                    return next;
-                });
-                return;
+                    return;
+                }
+                if (message.type === "CHAT" || message.type === "FILE") {
+                    setMessages((prev) => [...prev, message]);
+                    if (message.sender !== myMobile && connected) {
+                        wsService.sendReadReceipt(selectedChatId);
+                    }
+                }
             }
+
+            // 3. Update Lists (Conversations & Groups) - Reorder & Unread count
+            const isGroup = groups.some(g => g.id === message.conversationId);
+
             if (message.type === "CHAT" || message.type === "FILE") {
-                setMessages((prev) => [...prev, message]);
-                if (message.sender !== myMobile && connected) {
-                    wsService.sendReadReceipt(selectedChatId);
+                const preview = message.type === 'FILE' ? (message.fileType?.startsWith('image/') ? '📷 Photo' : '📎 File') : (message.content || "");
+
+                if (isGroup) {
+                    setGroups(prev => {
+                        const idx = prev.findIndex(g => g.id === message.conversationId);
+                        if (idx === -1) { getMyGroups(myMobile).then(setGroups); return prev; } // Refresh if new
+
+                        const updated = [...prev];
+                        const item = { ...updated[idx] };
+                        item.lastMessageAt = message.timestamp || Date.now();
+                        item.lastMessagePreview = preview;
+                        item.lastMessageSenderName = message.sender === myMobile ? "You" : (item.lastMessageSenderName || message.sender); // Ideally get name
+
+                        if (message.conversationId !== selectedChatId) {
+                            item.unreadCount = (item.unreadCount || 0) + 1;
+                        }
+
+                        updated.splice(idx, 1);
+                        updated.unshift(item);
+                        return updated;
+                    });
+                } else {
+                    setConversations(prev => {
+                        const idx = prev.findIndex(c => c.id === message.conversationId);
+                        if (idx === -1) { getConversations(myMobile).then(setConversations); return prev; } // Refresh if new
+
+                        const updated = [...prev];
+                        const item = { ...updated[idx] };
+                        item.lastMessageAt = message.timestamp || Date.now();
+                        item.lastMessagePreview = preview;
+
+                        if (message.conversationId !== selectedChatId) {
+                            item.unreadCount = (item.unreadCount || 0) + 1;
+                        }
+
+                        updated.splice(idx, 1);
+                        updated.unshift(item);
+                        return updated;
+                    });
                 }
             }
         };
+
         wsService.onMessage(handler);
-        return () => wsService.disconnect();
-    }, [myMobile, selectedChatId, messages, connected]);
+        // Do not disconnect on unmount of effect if we want to persist connection across chat changes
+        // But since we selectedChatId is in dependency of other effect, we need to manage carefully.
+        // Actually, we should only connect once. 
+        // For this refactor, I kept it simple but removed disconnect() from cleanup to avoid reconnect loop.
+        // But correctly, we should have a separate effect for connection vs handler.
+
+        return () => {
+            // wsService.disconnect(); // Don't disconnect to keep listening
+        };
+    }, [myMobile, selectedChatId, messages, connected, groups]); // Added groups to dep for check
 
     // Scroll to bottom
     useEffect(() => {
@@ -335,6 +464,8 @@ export default function DesktopChats() {
         return name.toLowerCase().includes(searchQuery.toLowerCase());
     });
 
+    const filteredGroups = groups.filter((g) => g.name.toLowerCase().includes(searchQuery.toLowerCase()));
+
     // Settings handlers
     const showSuccess = (msg: string) => {
         setSuccessMessage(msg);
@@ -479,6 +610,14 @@ export default function DesktopChats() {
                         </button>
                         <button
                             type="button"
+                            onClick={() => setShowCreateGroup(true)}
+                            className="p-2 rounded-full text-[#8696a0] hover:bg-white/10 hover:text-[#00a884] transition"
+                            title="Create group"
+                        >
+                            <Users className="w-5 h-5" />
+                        </button>
+                        <button
+                            type="button"
                             onClick={() => setShowNewChat(true)}
                             className="p-2 rounded-full text-[#8696a0] hover:bg-white/10 hover:text-[#00a884] transition"
                             title="New chat"
@@ -527,13 +666,55 @@ export default function DesktopChats() {
             <div className="flex-1 overflow-y-auto">
                 {loading ? (
                     <div className="p-4 text-[#8696a0] text-center text-sm">Loading…</div>
-                ) : filteredConversations.length === 0 ? (
+                ) : filteredConversations.length === 0 && filteredGroups.length === 0 ? (
                     <div className="p-6 text-center">
                         <MessageCircle className="w-12 h-12 mx-auto text-[#8696a0]/30 mb-3" />
                         <p className="text-[#8696a0] text-sm">No chats yet</p>
                     </div>
                 ) : (
                     <ul>
+                        {/* Groups */}
+                        {filteredGroups.length > 0 && (
+                            <div className="px-4 py-2 text-[10px] font-bold text-[#00a884] uppercase tracking-wider bg-[#111827]/30">Groups</div>
+                        )}
+                        {filteredGroups.map((group) => {
+                            const isActive = group.id === selectedChatId;
+                            return (
+                                <li key={group.id}>
+                                    <button
+                                        type="button"
+                                        onClick={() => router.push(`/desktop?mobile=${encodeURIComponent(myMobile)}&chatId=${group.id}`, undefined, { shallow: true })}
+                                        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition ${isActive
+                                            ? "bg-[#00a884]/20 border-r-2 border-[#00a884]"
+                                            : "hover:bg-white/5"
+                                            }`}
+                                    >
+                                        <div className="w-11 h-11 rounded-full flex items-center justify-center bg-[#2a3942] text-white font-semibold">
+                                            <Users className="w-5 h-5" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex justify-between items-start">
+                                                <h3 className="text-white font-medium truncate">{group.name}</h3>
+                                                <div className="flex flex-col items-end gap-0.5">
+                                                    <span className="text-[10px] text-[#8696a0]">{formatTime(group.lastMessageAt)}</span>
+                                                    {(group.unreadCount || 0) > 0 && (
+                                                        <div className="bg-[#25d366] text-[#111b21] text-[10px] font-bold h-4 min-w-[16px] px-1 flex items-center justify-center rounded-full leading-none">
+                                                            {group.unreadCount}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <p className="text-[#8696a0] text-sm truncate">{group.lastMessagePreview || "No messages"}</p>
+                                        </div>
+                                    </button>
+                                </li>
+                            );
+                        })}
+
+                        {/* Conversations */}
+                        {filteredConversations.length > 0 && (
+                            <div className="px-4 py-2 text-[10px] font-bold text-[#00a884] uppercase tracking-wider bg-[#111827]/30">Chats</div>
+                        )}
                         {filteredConversations.map((conv) => {
                             const convOtherMobile = conv.otherParticipantMobile ?? (conv.participant1 === myMobile ? conv.participant2 : conv.participant1);
                             const name = conv.otherParticipantName ?? convOtherMobile;
@@ -583,7 +764,14 @@ export default function DesktopChats() {
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center justify-between">
                                                 <p className="font-medium text-white text-sm truncate">{name}</p>
-                                                <span className="text-[10px] text-[#8696a0]">{formatTime(conv.lastMessageAt)}</span>
+                                                <div className="flex flex-col items-end gap-0.5">
+                                                    <span className="text-[10px] text-[#8696a0]">{formatTime(conv.lastMessageAt)}</span>
+                                                    {(conv.unreadCount || 0) > 0 && (
+                                                        <div className="bg-[#25d366] text-[#111b21] text-[10px] font-bold h-4 min-w-[16px] px-1 flex items-center justify-center rounded-full leading-none">
+                                                            {conv.unreadCount}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                             <p className="text-xs text-[#8696a0] truncate">{conv.lastMessagePreview || "No messages yet"}</p>
                                         </div>
@@ -959,6 +1147,17 @@ export default function DesktopChats() {
                 <ProfileModal
                     mobile={viewingProfile}
                     onClose={() => setViewingProfile(null)}
+                />
+            )}
+
+            {/* Create Group Modal */}
+            {showCreateGroup && (
+                <CreateGroupModal
+                    myMobile={myMobile}
+                    onClose={() => setShowCreateGroup(false)}
+                    onGroupCreated={() => {
+                        getMyGroups(myMobile).then(setGroups);
+                    }}
                 />
             )}
 

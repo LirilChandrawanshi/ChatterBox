@@ -2,12 +2,15 @@ package com.example.ChatBot.controller;
 
 import com.example.ChatBot.model.ConversationDocument;
 import com.example.ChatBot.model.Entity;
+import com.example.ChatBot.model.GroupDocument;
 import com.example.ChatBot.model.UserDocument;
 import com.example.ChatBot.service.ChatService;
 import com.example.ChatBot.service.ConversationService;
+import com.example.ChatBot.service.GroupService;
 import com.example.ChatBot.service.UserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -22,13 +25,15 @@ public class ConversationController {
     private final UserService userService;
     private final ChatService chatService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final GroupService groupService;
 
     public ConversationController(ConversationService conversationService, UserService userService,
-            ChatService chatService, SimpMessagingTemplate messagingTemplate) {
+            ChatService chatService, SimpMessagingTemplate messagingTemplate, GroupService groupService) {
         this.conversationService = conversationService;
         this.userService = userService;
         this.chatService = chatService;
         this.messagingTemplate = messagingTemplate;
+        this.groupService = groupService;
     }
 
     /**
@@ -121,11 +126,21 @@ public class ConversationController {
             @RequestParam(defaultValue = "50") int limit) {
         if (limit > 100)
             limit = 100;
-        // Verify user is participant
-        boolean allowed = conversationService.listForUser(mobile).stream()
+
+        // Verify user is participant in conversation OR member of group
+        boolean isConversationParticipant = conversationService.listForUser(mobile).stream()
                 .anyMatch(c -> c.getId().equals(id));
-        if (!allowed)
+
+        boolean isGroupMember = false;
+        GroupDocument group = groupService.getGroup(id);
+        if (group != null) {
+            isGroupMember = group.getMembers().contains(mobile);
+        }
+
+        if (!isConversationParticipant && !isGroupMember) {
             return ResponseEntity.notFound().build();
+        }
+
         List<Entity> messages = chatService.getMessagesByConversationId(id, limit);
         return ResponseEntity.ok(messages);
     }
@@ -139,12 +154,25 @@ public class ConversationController {
     @PostMapping("/{id}/messages")
     public ResponseEntity<Entity> sendMessage(@PathVariable String id, @RequestParam String mobile,
             @RequestBody Map<String, Object> body) {
-        List<ConversationDocument> myConvs = conversationService.listForUser(mobile);
-        ConversationDocument conv = myConvs.stream().filter(c -> c.getId().equals(id)).findFirst().orElse(null);
-        if (conv == null)
-            return ResponseEntity.notFound().build();
 
-        String otherMobile = conv.getOtherParticipant(mobile);
+        // Check if this is a group or a conversation
+        GroupDocument group = groupService.getGroup(id);
+        ConversationDocument conv = null;
+
+        if (group != null) {
+            // It's a group - verify user is a member
+            if (!group.getMembers().contains(mobile)) {
+                return ResponseEntity.notFound().build();
+            }
+        } else {
+            // It's a conversation - verify user is a participant
+            List<ConversationDocument> myConvs = conversationService.listForUser(mobile);
+            conv = myConvs.stream().filter(c -> c.getId().equals(id)).findFirst().orElse(null);
+            if (conv == null) {
+                return ResponseEntity.notFound().build();
+            }
+        }
+
         Entity message = new Entity();
         message.setSender(mobile);
         message.setConversationId(id);
@@ -183,8 +211,27 @@ public class ConversationController {
         if (savedId != null)
             message.setId(savedId);
 
-        messagingTemplate.convertAndSendToUser(mobile, "/queue/messages", message);
-        messagingTemplate.convertAndSendToUser(otherMobile, "/queue/messages", message);
+        // Send message to appropriate recipients
+        if (group != null) {
+            // For groups, send to all members
+            for (String memberMobile : group.getMembers()) {
+                messagingTemplate.convertAndSendToUser(memberMobile, "/queue/messages", message);
+            }
+            // Update group's last message info
+            group.setLastMessageAt(message.getTimestamp());
+            group.setLastMessagePreview(message.getContent() != null && !message.getContent().isEmpty()
+                    ? message.getContent()
+                    : "[File]");
+            // Get sender's display name
+            UserDocument sender = userService.findByMobile(mobile);
+            group.setLastMessageSenderName(sender != null ? sender.getDisplayName() : mobile);
+            groupService.save(group);
+        } else {
+            // For 1:1 conversations
+            String otherMobile = conv.getOtherParticipant(mobile);
+            messagingTemplate.convertAndSendToUser(mobile, "/queue/messages", message);
+            messagingTemplate.convertAndSendToUser(otherMobile, "/queue/messages", message);
+        }
 
         return ResponseEntity.ok(message);
     }

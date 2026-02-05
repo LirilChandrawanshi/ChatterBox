@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
-import { MessageCircle, Disc, Users, Settings } from "lucide-react";
+import { MessageCircle, Disc, Users, Settings, UsersRound } from "lucide-react";
 
-type TabId = "chats" | "status" | "community" | "settings" | "think";
+type TabId = "chats" | "status" | "community" | "groups" | "settings" | "think";
 
 interface Tab {
     id: TabId;
@@ -36,6 +36,12 @@ export default function BottomNav({ activeTab, mobile }: BottomNavProps) {
             label: "Community",
             icon: <Users className="w-5 h-5" />,
             path: "/community",
+        },
+        {
+            id: "groups",
+            label: "Groups",
+            icon: <UsersRound className="w-5 h-5" />,
+            path: "/groups",
         },
         {
             id: "settings",
