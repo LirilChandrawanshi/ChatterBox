@@ -4,7 +4,7 @@ import Head from "next/head";
 import { Settings as SettingsIcon, Camera, Check, LogOut, User, Pencil } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import { getStoredUser, setStoredUser } from "./index";
-import { clearToken, updateDisplayName, updateProfilePicture, getProfilePicture } from "@/services/api";
+import { clearToken, updateDisplayName, updateProfilePicture, getProfilePicture, updateBio, getBio } from "@/services/api";
 
 export default function Settings() {
     const router = useRouter();
@@ -19,6 +19,9 @@ export default function Settings() {
     const [profilePicture, setProfilePicture] = useState<string | null>(null);
     const [isUploadingPicture, setIsUploadingPicture] = useState(false);
     const [successMessage, setSuccessMessage] = useState("");
+    const [bio, setBio] = useState("");
+    const [isEditingBio, setIsEditingBio] = useState(false);
+    const [isSavingBio, setIsSavingBio] = useState(false);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const nameInputRef = useRef<HTMLInputElement>(null);
@@ -36,6 +39,10 @@ export default function Settings() {
         // Load profile picture
         getProfilePicture(myMobile).then((pic) => {
             if (pic) setProfilePicture(pic);
+        }).catch(() => { });
+        // Load bio
+        getBio(myMobile).then((b) => {
+            if (b) setBio(b);
         }).catch(() => { });
     }, [router.isReady, myMobile]);
 
@@ -109,6 +116,19 @@ export default function Settings() {
         localStorage.removeItem("chatterbox_user");
         clearToken();
         router.push("/");
+    };
+
+    const handleSaveBio = async () => {
+        setIsSavingBio(true);
+        try {
+            await updateBio(myMobile, bio.trim());
+            showSuccess("Bio updated!");
+        } catch {
+            showSuccess("Bio updated locally!");
+        } finally {
+            setIsSavingBio(false);
+            setIsEditingBio(false);
+        }
     };
 
     if (!mounted || !myMobile) return null;
@@ -223,9 +243,50 @@ export default function Settings() {
 
                             {/* Mobile Number */}
                             <p className="text-[#8696a0] text-sm mt-2">{myMobile}</p>
+
+                            {/* Bio Section */}
+                            <div className="w-full max-w-xs mt-4">
+                                <p className="text-[#8696a0] text-xs uppercase tracking-wider mb-2 text-center">About</p>
+                                {isEditingBio ? (
+                                    <div className="flex flex-col gap-2">
+                                        <textarea
+                                            value={bio}
+                                            onChange={(e) => setBio(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Escape") setIsEditingBio(false);
+                                            }}
+                                            placeholder="Write something about yourself..."
+                                            maxLength={150}
+                                            rows={3}
+                                            className="w-full bg-[#2a3942] border border-[#00a884] rounded-xl px-4 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#00a884]/50 resize-none"
+                                        />
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs text-[#8696a0]">{bio.length}/150</span>
+                                            <button
+                                                type="button"
+                                                onClick={handleSaveBio}
+                                                disabled={isSavingBio}
+                                                className="px-4 py-1.5 rounded-full bg-[#00a884] hover:bg-[#06cf9c] text-white text-sm font-medium transition-colors disabled:opacity-50"
+                                            >
+                                                {isSavingBio ? "Saving..." : "Save"}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsEditingBio(true)}
+                                        className="w-full bg-[#1f2c34] rounded-xl px-4 py-3 text-left group hover:bg-[#2a3942]/50 transition border border-[#2a3942]/50"
+                                    >
+                                        <p className="text-white text-sm">
+                                            {bio || <span className="text-[#8696a0] italic">Add a bio...</span>}
+                                        </p>
+                                        <Pencil className="w-3 h-3 text-[#8696a0] group-hover:text-[#00a884] transition-colors absolute top-2 right-2" />
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
-
                     {/* Menu Items */}
                     <div className="px-4">
                         <div className="bg-[#1f2c34] rounded-2xl overflow-hidden border border-[#2a3942]/50">

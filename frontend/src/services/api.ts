@@ -29,6 +29,15 @@ export interface User {
   mobile: string;
   displayName: string;
   createdAt: number;
+  bio?: string;
+  profilePicture?: string;
+}
+
+export interface UserProfile {
+  mobile: string;
+  displayName: string;
+  bio: string;
+  profilePicture: string;
 }
 
 export interface ConversationSummary {
@@ -251,6 +260,33 @@ export async function getProfilePicture(mobile: string): Promise<string | null> 
   if (!res.ok) return null;
   const data = await res.json();
   return data.picture || null;
+}
+
+export async function updateBio(mobile: string, bio: string): Promise<User> {
+  const res = await fetch(`${getBase()}/api/users/profile/bio?mobile=${encodeURIComponent(mobile)}`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify({ bio: bio.trim() }),
+  });
+  if (!res.ok) throw new Error("Failed to update bio");
+  return res.json();
+}
+
+export async function getBio(mobile: string): Promise<string> {
+  const res = await fetch(`${getBase()}/api/users/profile/bio?mobile=${encodeURIComponent(mobile)}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) return "";
+  const data = await res.json();
+  return data.bio || "";
+}
+
+export async function getUserProfile(mobile: string): Promise<UserProfile | null> {
+  const res = await fetch(`${getBase()}/api/users/profile/${encodeURIComponent(mobile)}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) return null;
+  return res.json();
 }
 
 // Conversation management functions

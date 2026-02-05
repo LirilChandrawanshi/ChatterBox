@@ -108,4 +108,26 @@ public class UserService {
         UserDocument user = userRepository.findByMobile(normalized).orElse(null);
         return user != null ? user.getProfilePicture() : null;
     }
+
+    /**
+     * Update user's bio.
+     */
+    public UserDocument updateBio(String mobile, String bio) {
+        String normalized = UserDocument.normalizeMobile(mobile);
+        UserDocument user = userRepository.findByMobile(normalized).orElse(null);
+        if (user == null) {
+            throw new IllegalArgumentException("User not found");
+        }
+        user.setBio(bio);
+        return userRepository.save(user);
+    }
+
+    /**
+     * Get user's bio.
+     */
+    public String getBio(String mobile) {
+        String normalized = UserDocument.normalizeMobile(mobile);
+        UserDocument user = userRepository.findByMobile(normalized).orElse(null);
+        return user != null ? user.getBio() : null;
+    }
 }

@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import Head from "next/head";
 import { Plus, Heart, MessageCircle, Trash2, Send, X } from "lucide-react";
 import DesktopLayout from "@/components/DesktopLayout";
+import ProfileModal from "@/components/ProfileModal";
 import {
     getCommunityPosts,
     createCommunityPost,
@@ -31,6 +32,10 @@ export default function Community() {
     const [commentingPostId, setCommentingPostId] = useState<string | null>(null);
     const [commentText, setCommentText] = useState("");
     const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
+
+    // Filter and profile viewing state
+    const [filter, setFilter] = useState<"all" | "my" | "liked">("all");
+    const [viewingProfile, setViewingProfile] = useState<string | null>(null);
 
     useEffect(() => {
         if (!router.isReady) return;
@@ -111,19 +116,44 @@ export default function Community() {
 
     if (!myMobile) return null;
 
+    // Filter posts based on selected filter
+    const filteredPosts = posts.filter(post => {
+        if (filter === "my") return post.authorMobile === myMobile;
+        if (filter === "liked") return post.likes.includes(myMobile);
+        return true;
+    });
+
     const Sidebar = (
         <div className="flex flex-col h-full bg-[#111b21] border-r border-[#2a3942]">
             <header className="px-4 py-4 border-b border-[#2a3942] bg-[#202c33] flex items-center justify-between shadow-sm">
                 <h1 className="text-xl font-bold text-white">Community</h1>
             </header>
             <div className="p-4 space-y-2">
-                <button className="w-full text-left px-4 py-3 rounded-xl bg-[#202c33] text-white font-medium hover:bg-[#2a3942] transition border border-[#2a3942]">
+                <button
+                    onClick={() => setFilter("all")}
+                    className={`w-full text-left px-4 py-3 rounded-xl font-medium transition ${filter === "all"
+                        ? "bg-[#2a3942] text-[#00a884] ring-1 ring-[#00a884]"
+                        : "bg-[#202c33] text-[#8696a0] hover:bg-[#2a3942] hover:text-white"
+                        }`}
+                >
                     All Posts
                 </button>
-                <button className="w-full text-left px-4 py-3 rounded-xl hover:bg-[#202c33] text-[#8696a0] hover:text-white transition group">
+                <button
+                    onClick={() => setFilter("my")}
+                    className={`w-full text-left px-4 py-3 rounded-xl font-medium transition ${filter === "my"
+                        ? "bg-[#2a3942] text-[#00a884] ring-1 ring-[#00a884]"
+                        : "bg-[#202c33] text-[#8696a0] hover:bg-[#2a3942] hover:text-white"
+                        }`}
+                >
                     My Posts
                 </button>
-                <button className="w-full text-left px-4 py-3 rounded-xl hover:bg-[#202c33] text-[#8696a0] hover:text-white transition group">
+                <button
+                    onClick={() => setFilter("liked")}
+                    className={`w-full text-left px-4 py-3 rounded-xl font-medium transition ${filter === "liked"
+                        ? "bg-[#2a3942] text-[#00a884] ring-1 ring-[#00a884]"
+                        : "bg-[#202c33] text-[#8696a0] hover:bg-[#2a3942] hover:text-white"
+                        }`}
+                >
                     Liked Posts
                 </button>
             </div>
@@ -137,12 +167,6 @@ export default function Community() {
                     Create Post
                 </button>
             </div>
-
-            {/* BottomNav for Mobile (hidden on desktop) */}
-            {/* Wait, if showMain=true on mobile, we don't see sidebar. So this is pointless here for mobile. 
-                But on desktop, we see sidebar. 
-                Wait, if showMain=true on mobile, we need BottomNav in MAIN.
-            */}
         </div>
     );
 
@@ -166,25 +190,31 @@ export default function Community() {
                         <div className="w-8 h-8 border-4 border-[#00a884] border-t-transparent rounded-full animate-spin mb-4"></div>
                         <p className="text-[#8696a0]">Loading community...</p>
                     </div>
-                ) : posts.length === 0 ? (
+                ) : filteredPosts.length === 0 ? (
                     <div className="text-center py-12 px-4 h-full flex flex-col items-center justify-center">
                         <div className="w-24 h-24 mx-auto rounded-full bg-[#1f2c34] flex items-center justify-center mb-6">
                             <MessageCircle className="w-12 h-12 text-[#00a884]" />
                         </div>
-                        <h3 className="text-white font-medium text-xl mb-2">No posts yet</h3>
-                        <p className="text-[#8696a0] text-sm mb-6 max-w-xs mx-auto">Be the first to share something with the community!</p>
-                        <button
-                            type="button"
-                            onClick={() => setShowCreateModal(true)}
-                            className="px-6 py-3 rounded-xl bg-[#00a884] text-white hover:bg-[#06cf9c] transition shadow-lg inline-flex items-center gap-2 font-medium"
-                        >
-                            <Plus className="w-5 h-5" />
-                            Create Post
-                        </button>
+                        <h3 className="text-white font-medium text-xl mb-2">
+                            {filter === "all" ? "No posts yet" : filter === "my" ? "You haven't posted yet" : "No liked posts"}
+                        </h3>
+                        <p className="text-[#8696a0] text-sm mb-6 max-w-xs mx-auto">
+                            {filter === "all" ? "Be the first to share something with the community!" : filter === "my" ? "Share your thoughts with the community!" : "Like some posts to see them here!"}
+                        </p>
+                        {filter !== "liked" && (
+                            <button
+                                type="button"
+                                onClick={() => setShowCreateModal(true)}
+                                className="px-6 py-3 rounded-xl bg-[#00a884] text-white hover:bg-[#06cf9c] transition shadow-lg inline-flex items-center gap-2 font-medium"
+                            >
+                                <Plus className="w-5 h-5" />
+                                Create Post
+                            </button>
+                        )}
                     </div>
                 ) : (
                     <div className="divide-y divide-[#2a3942] max-w-3xl mx-auto w-full">
-                        {posts.map(post => {
+                        {filteredPosts.map(post => {
                             const isLiked = post.likes.includes(myMobile);
                             const isOwn = post.authorMobile === myMobile;
                             const showComments = expandedComments.has(post.id);
@@ -193,14 +223,22 @@ export default function Community() {
                                 <div key={post.id} className="p-4 hover:bg-[#111b21]/30 transition">
                                     {/* Author */}
                                     <div className="flex items-center gap-3 mb-3">
-                                        <div
-                                            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm ring-2 ring-[#2a3942]"
+                                        <button
+                                            type="button"
+                                            onClick={() => setViewingProfile(post.authorMobile)}
+                                            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm ring-2 ring-[#2a3942] hover:ring-[#00a884] transition cursor-pointer"
                                             style={{ backgroundColor: getColor(post.authorMobile) }}
                                         >
                                             {post.authorName.charAt(0).toUpperCase()}
-                                        </div>
+                                        </button>
                                         <div className="flex-1">
-                                            <p className="text-white font-medium leading-tight">{post.authorName}</p>
+                                            <button
+                                                type="button"
+                                                onClick={() => setViewingProfile(post.authorMobile)}
+                                                className="text-white font-medium leading-tight hover:underline text-left"
+                                            >
+                                                {post.authorName}
+                                            </button>
                                             <p className="text-xs text-[#8696a0] mt-0.5">{formatTime(post.createdAt)}</p>
                                         </div>
                                         {isOwn && (
@@ -367,6 +405,14 @@ export default function Community() {
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* Profile Modal */}
+            {viewingProfile && (
+                <ProfileModal
+                    mobile={viewingProfile}
+                    onClose={() => setViewingProfile(null)}
+                />
             )}
         </>
     );

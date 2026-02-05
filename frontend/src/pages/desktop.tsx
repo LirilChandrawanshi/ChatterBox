@@ -23,6 +23,7 @@ import { wsService, type ChatMessage } from "@/services/websocket";
 import { getEmojiList } from "@/utils/emojis";
 import DesktopLayout from "@/components/DesktopLayout";
 import BottomNav from "@/components/BottomNav";
+import ProfileModal from "@/components/ProfileModal";
 
 const EMOJI_LIST = getEmojiList();
 
@@ -68,6 +69,7 @@ export default function DesktopChats() {
     const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
     const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null);
     const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+    const [viewingProfile, setViewingProfile] = useState<string | null>(null);
 
     const messageAreaRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -620,13 +622,19 @@ export default function DesktopChats() {
                 </div>
             ) : (
                 <div className="px-6 py-4 border-b border-white/5 flex items-center gap-4 bg-[#111827]/50">
-                    <div
-                        className="w-11 h-11 rounded-full flex items-center justify-center text-white font-semibold"
+                    <button
+                        type="button"
+                        onClick={() => setViewingProfile(otherMobile)}
+                        className="w-11 h-11 rounded-full flex items-center justify-center text-white font-semibold transition hover:opacity-80 cursor-pointer"
                         style={{ backgroundColor: getAvatarColor(otherMobile || "?") }}
                     >
                         {(otherName || otherMobile || "?").charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex-1">
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setViewingProfile(otherMobile)}
+                        className="flex-1 text-left transition hover:opacity-80 cursor-pointer"
+                    >
                         <h2 className="text-white font-semibold">{otherName || otherMobile || "Chat"}</h2>
                         <p className="text-xs text-[#8696a0]">
                             {isTyping ? (
@@ -635,7 +643,7 @@ export default function DesktopChats() {
                                 onlineMobiles.has(otherMobile) ? "Online" : "Offline"
                             )}
                         </p>
-                    </div>
+                    </button>
                 </div>
             )}
 
@@ -944,6 +952,14 @@ export default function DesktopChats() {
                         </button>
                     </div>
                 </div>
+            )}
+
+            {/* Profile Modal */}
+            {viewingProfile && (
+                <ProfileModal
+                    mobile={viewingProfile}
+                    onClose={() => setViewingProfile(null)}
+                />
             )}
 
             <DesktopLayout sidebar={Sidebar} main={MainPanel} showMain={!!selectedChatId} />

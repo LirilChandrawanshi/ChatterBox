@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import { MessageCircle, Disc, Users, Settings } from "lucide-react";
 
-type TabId = "chats" | "status" | "community" | "settings";
+type TabId = "chats" | "status" | "community" | "settings" | "think";
 
 interface Tab {
     id: TabId;

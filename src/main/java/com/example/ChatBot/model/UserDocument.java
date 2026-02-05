@@ -22,6 +22,7 @@ public class UserDocument {
     @JsonIgnore
     private String hashedPassword;
     private String profilePicture; // Base64 encoded profile picture
+    private String bio; // User bio, max 150 chars
     private long createdAt;
 
     public UserDocument() {
@@ -86,5 +87,13 @@ public class UserDocument {
 
     public void setProfilePicture(String profilePicture) {
         this.profilePicture = profilePicture;
+    }
+
+    public String getBio() {
+        return bio;
+    }
+
+    public void setBio(String bio) {
+        this.bio = bio != null && bio.length() > 150 ? bio.substring(0, 150) : bio;
     }
 }

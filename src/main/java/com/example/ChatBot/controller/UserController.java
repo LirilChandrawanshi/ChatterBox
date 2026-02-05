@@ -98,4 +98,48 @@ public class UserController {
         String picture = userService.getProfilePicture(mobile);
         return ResponseEntity.ok(Map.of("picture", picture != null ? picture : ""));
     }
+
+    /**
+     * PUT /api/users/profile/bio
+     * Update user's bio.
+     */
+    @PutMapping("/profile/bio")
+    public ResponseEntity<UserDocument> updateBio(
+            @RequestParam String mobile,
+            @RequestBody Map<String, String> body) {
+        try {
+            String bio = body.get("bio");
+            UserDocument user = userService.updateBio(mobile, bio);
+            return ResponseEntity.ok(user);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * GET /api/users/profile/bio
+     * Get user's bio.
+     */
+    @GetMapping("/profile/bio")
+    public ResponseEntity<Map<String, String>> getBio(@RequestParam String mobile) {
+        String bio = userService.getBio(mobile);
+        return ResponseEntity.ok(Map.of("bio", bio != null ? bio : ""));
+    }
+
+    /**
+     * GET /api/users/profile/{mobile}
+     * Get any user's public profile (name, bio, picture).
+     */
+    @GetMapping("/profile/{mobile}")
+    public ResponseEntity<Map<String, Object>> getPublicProfile(@PathVariable String mobile) {
+        UserDocument user = userService.findByMobile(mobile);
+        if (user == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(Map.of(
+                "mobile", user.getMobile(),
+                "displayName", user.getDisplayName() != null ? user.getDisplayName() : user.getMobile(),
+                "bio", user.getBio() != null ? user.getBio() : "",
+                "profilePicture", user.getProfilePicture() != null ? user.getProfilePicture() : ""));
+    }
 }

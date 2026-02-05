@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import Head from "next/head";
 import { ArrowLeft, Paperclip, Smile, Send, Check, CheckCheck, Trash2, Reply, X } from "lucide-react";
 import { wsService, type ChatMessage } from "@/services/websocket";
+import ProfileModal from "@/components/ProfileModal";
 import {
   getMessages,
   sendMessage as apiSendMessage,
@@ -46,6 +47,7 @@ export default function ConversationPage() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const longPressActiveRef = useRef(false);
+  const [viewingProfile, setViewingProfile] = useState(false);
 
   // Handlers
   const handleLongPress = (msgId: string) => {
@@ -352,13 +354,19 @@ export default function ConversationPage() {
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
-              <div
-                className="w-11 h-11 rounded-full flex items-center justify-center text-white font-semibold shrink-0 shadow-md ring-2 ring-white/10"
+              <button
+                type="button"
+                onClick={() => setViewingProfile(true)}
+                className="w-11 h-11 rounded-full flex items-center justify-center text-white font-semibold shrink-0 shadow-md ring-2 ring-white/10 hover:ring-[#00a884] transition cursor-pointer"
                 style={{ backgroundColor: getAvatarColor(otherMobile || "?") }}
               >
                 {(otherName || otherMobile || "?").charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewingProfile(true)}
+                className="flex-1 min-w-0 text-left hover:opacity-80 transition"
+              >
                 <h1 className="text-white font-semibold truncate text-lg">{otherName || otherMobile || "Chat"}</h1>
                 <p className="text-xs text-[#8696a0]">
                   {isTyping ? (
@@ -367,7 +375,7 @@ export default function ConversationPage() {
                     otherMobile || ""
                   )}
                 </p>
-              </div>
+              </button>
             </>
           )}
         </header>
@@ -536,6 +544,14 @@ export default function ConversationPage() {
           <p className="text-center text-xs text-[#8696a0] py-1">Sending…</p>
         )}
       </div>
+
+      {/* Profile Modal */}
+      {viewingProfile && otherMobile && (
+        <ProfileModal
+          mobile={otherMobile}
+          onClose={() => setViewingProfile(false)}
+        />
+      )}
     </>
   );
 }

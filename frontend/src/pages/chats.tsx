@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
 import { MessageCircle, Plus, User, Trash2, X } from "lucide-react";
+import ProfileModal from "@/components/ProfileModal";
 import {
   getConversations,
   getOnlineMobiles,
@@ -33,6 +34,7 @@ export default function Chats() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [viewingProfile, setViewingProfile] = useState<string | null>(null);
 
   // Desktop detection - redirect to desktop view only on initial load
   useEffect(() => {
@@ -348,12 +350,19 @@ export default function Chats() {
                         </div>
                       )}
                       <div className="relative shrink-0">
-                        <div
-                          className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-lg shadow-md ring-2 ring-white/5"
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!selectionMode) {
+                              setViewingProfile(otherMobile);
+                            }
+                          }}
+                          className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-lg shadow-md ring-2 ring-white/5 hover:ring-[#00a884] transition cursor-pointer"
                           style={{ backgroundColor: color }}
                         >
                           {name.charAt(0).toUpperCase()}
-                        </div>
+                        </button>
                         {isOnline && (
                           <span
                             className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[#00a884] border-2 border-[#0a0e12]"
@@ -381,6 +390,14 @@ export default function Chats() {
         {/* Bottom Navigation */}
         <BottomNav activeTab="chats" mobile={myMobile} />
       </div>
+
+      {/* Profile Modal */}
+      {viewingProfile && (
+        <ProfileModal
+          mobile={viewingProfile}
+          onClose={() => setViewingProfile(null)}
+        />
+      )}
     </>
   );
 }
