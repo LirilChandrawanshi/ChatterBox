@@ -34,7 +34,8 @@ public class ChatBotController {
         }
         
         chatMessage.setTimestamp(System.currentTimeMillis());
-        chatService.saveIfPersistable(chatMessage);
+        String savedId = chatService.saveIfPersistable(chatMessage);
+        if (savedId != null) chatMessage.setId(savedId);
         return chatMessage;
     }
 
@@ -64,7 +65,8 @@ public class ChatBotController {
     public Entity sendFile(@Payload @Valid Entity chatMessage) {
         logger.info("File shared by {}: {}", chatMessage.getSender(), chatMessage.getFileType());
         chatMessage.setTimestamp(System.currentTimeMillis());
-        chatService.saveIfPersistable(chatMessage);
+        String savedId = chatService.saveIfPersistable(chatMessage);
+        if (savedId != null) chatMessage.setId(savedId);
         return chatMessage;
     }
 

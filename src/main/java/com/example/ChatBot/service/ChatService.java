@@ -25,14 +25,25 @@ public class ChatService {
     /**
      * Persist a chat message if it's a CHAT or FILE type.
      * JOIN, LEAVE, TYPING are not stored.
+     * @return the saved document's id, or null if not persisted
      */
-    public void saveIfPersistable(Entity message) {
-        if (message == null) return;
+    public String saveIfPersistable(Entity message) {
+        if (message == null) return null;
         if (message.getType() != Entity.MessageType.CHAT && message.getType() != Entity.MessageType.FILE) {
-            return;
+            return null;
         }
         ChatMessageDocument doc = ChatMessageDocument.fromEntity(message);
-        repository.save(doc);
+        ChatMessageDocument saved = repository.save(doc);
+        return saved.getId();
+    }
+
+    /**
+     * Delete messages by id. Only persisted (CHAT/FILE) messages have ids.
+     * Ignores non-existent ids.
+     */
+    public void deleteByIds(List<String> ids) {
+        if (ids == null || ids.isEmpty()) return;
+        repository.deleteAllById(ids);
     }
 
     /**

@@ -2,12 +2,15 @@ import { Client, IMessage } from '@stomp/stompjs'
 import SockJS from 'sockjs-client'
 
 export interface ChatMessage {
-  type: 'CHAT' | 'JOIN' | 'LEAVE' | 'TYPING' | 'FILE'
+  id?: string
+  type: 'CHAT' | 'JOIN' | 'LEAVE' | 'TYPING' | 'FILE' | 'DELETED'
   content?: string
   sender: string
   fileContent?: string
   fileType?: string
   timestamp?: number
+  /** Set when type is DELETED: ids of removed messages */
+  messageIds?: string[]
 }
 
 export class WebSocketService {

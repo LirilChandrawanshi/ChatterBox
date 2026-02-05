@@ -46,6 +46,7 @@ public class ChatMessageDocument {
 
     public Entity toEntity() {
         Entity entity = new Entity();
+        entity.setId(id);
         entity.setType(type);
         entity.setContent(content);
         entity.setSender(sender);

@@ -7,5 +7,6 @@
 /Users/macbook/Desktop/ChatterBox/src/main/java/com/example/ChatBot/model/ChatMessageDocument.java
 /Users/macbook/Desktop/ChatterBox/src/main/java/com/example/ChatBot/repository/ChatMessageRepository.java
 /Users/macbook/Desktop/ChatterBox/src/main/java/com/example/ChatBot/controller/ChatBotController.java
+/Users/macbook/Desktop/ChatterBox/src/main/java/com/example/ChatBot/model/MessagesDeletedEvent.java
 /Users/macbook/Desktop/ChatterBox/src/main/java/com/example/ChatBot/controller/MessageHistoryController.java
 /Users/macbook/Desktop/ChatterBox/src/main/java/com/example/ChatBot/service/ChatService.java

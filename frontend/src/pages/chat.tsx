@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, FormEvent } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
-import { ArrowLeft, Sun, Moon, Smile, Paperclip, Send } from "lucide-react";
+import { ArrowLeft, Sun, Moon, Paperclip, Send, Trash2, X } from "lucide-react";
 import { wsService, ChatMessage } from "@/services/websocket";
 
 export default function Chat() {
@@ -15,11 +15,16 @@ export default function Chat() {
   const [darkMode, setDarkMode] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
   const [connectionError, setConnectionError] = useState<string>("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
 
   const messageAreaRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const sendTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isTypingSentRef = useRef<boolean>(false);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const longPressHandledRef = useRef(false);
+  const LONG_PRESS_MS = 500;
 
   useEffect(() => {
     // Wait for router to be ready
@@ -81,6 +86,20 @@ export default function Chat() {
           }, 3000);
         }
         // Don't add typing messages to chat
+        return;
+      }
+
+      // Handle bulk delete broadcast: remove deleted message ids from local state
+      if (message.type === "DELETED" && message.messageIds?.length) {
+        setMessages((prev) =>
+          prev.filter((m) => !message.messageIds!.includes(m.id!))
+        );
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          message.messageIds!.forEach((id) => next.delete(id));
+          return next;
+        });
+        setSelectionMode((mode) => (mode ? false : mode));
         return;
       }
 
@@ -177,6 +196,47 @@ export default function Chat() {
     });
   };
 
+  const isDeletable = (message: ChatMessage) =>
+    (message.type === "CHAT" || message.type === "FILE") && message.id;
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllDeletable = () => {
+    const ids = messages.filter(isDeletable).map((m) => m.id!);
+    setSelectedIds(new Set(ids));
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setSelectionMode(false);
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+    try {
+      const res = await fetch(`${apiUrl}/api/messages`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(Array.from(selectedIds)),
+      });
+      if (res.ok) {
+        setMessages((prev) => prev.filter((m) => !selectedIds.has(m.id!)));
+        setSelectedIds(new Set());
+        setSelectionMode(false);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   const renderMessage = (message: ChatMessage, index: number) => {
     const isOwnMessage = message.sender === username;
 
@@ -194,19 +254,78 @@ export default function Chat() {
       );
     }
 
+    const canDelete = isDeletable(message);
+    const isSelected = message.id && selectedIds.has(message.id);
+    const showCheckbox = selectionMode && canDelete;
+
+    const startLongPress = () => {
+      if (!canDelete || !message.id) return;
+      longPressTimerRef.current = setTimeout(() => {
+        longPressTimerRef.current = null;
+        longPressHandledRef.current = true;
+        setSelectionMode(true);
+        setSelectedIds((prev) => new Set(prev).add(message.id!));
+      }, LONG_PRESS_MS);
+    };
+
+    const cancelLongPress = () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+    };
+
+    const handleBubbleClick = () => {
+      if (!selectionMode || !canDelete || !message.id) return;
+      if (longPressHandledRef.current) {
+        longPressHandledRef.current = false;
+        return;
+      }
+      toggleSelect(message.id);
+    };
+
     return (
       <li
-        key={index}
+        key={message.id ?? `idx-${index}`}
         className={`flex ${
           isOwnMessage ? "justify-end" : "justify-start"
-        } mb-4 animate-fade-in`}
+        } mb-4 animate-fade-in group`}
       >
+        {showCheckbox && (
+          <label
+            className="flex items-center mr-2 self-center cursor-pointer shrink-0"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input
+              type="checkbox"
+              checked={!!isSelected}
+              onChange={() => message.id && toggleSelect(message.id)}
+              className="w-4 h-4 rounded border-gray-400 text-blue-600 focus:ring-blue-500"
+            />
+          </label>
+        )}
         <div
-          className={`max-w-[80%] ${
+          role="button"
+          tabIndex={0}
+          className={`max-w-[80%] select-none ${
+            isSelected ? "ring-2 ring-blue-400 ring-offset-2 dark:ring-offset-gray-900" : ""
+          } ${
             isOwnMessage
               ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-br-sm"
               : "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-sm"
-          } rounded-2xl px-4 py-3 shadow-md`}
+          } rounded-2xl px-4 py-3 shadow-md active:opacity-90 ${
+            canDelete ? "cursor-pointer" : ""
+          }`}
+          onClick={handleBubbleClick}
+          onTouchStart={startLongPress}
+          onTouchEnd={cancelLongPress}
+          onTouchMove={cancelLongPress}
+          onMouseDown={startLongPress}
+          onMouseUp={cancelLongPress}
+          onMouseLeave={cancelLongPress}
+          onContextMenu={(e) => {
+            if (canDelete) e.preventDefault();
+          }}
         >
           <div className="flex items-center mb-1">
             <span
@@ -283,6 +402,41 @@ export default function Chat() {
           </div>
         )}
 
+        {/* Selection toolbar (WhatsApp-style: shown when in selection mode) */}
+        {selectionMode && (
+          <div className="bg-blue-100 dark:bg-blue-900/50 border-b border-blue-200 dark:border-blue-800 px-4 py-2 flex items-center justify-between gap-2 flex-wrap">
+            <span className="text-sm text-blue-800 dark:text-blue-200">
+              {selectedIds.size} message{selectedIds.size !== 1 ? "s" : ""} selected
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={selectAllDeletable}
+                className="text-sm px-3 py-1.5 rounded-lg bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-blue-100 hover:bg-blue-300 dark:hover:bg-blue-700"
+              >
+                Select all
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteSelected}
+                disabled={selectedIds.size === 0}
+                className="text-sm px-3 py-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete selected
+              </button>
+              <button
+                type="button"
+                onClick={clearSelection}
+                className="p-1.5 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800"
+                title="Cancel"
+              >
+                <X className="w-4 h-4 text-blue-800 dark:text-blue-200" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Connection error */}
         {connectionError && (
           <div className="bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 px-4 py-2 text-center text-sm">
@@ -302,7 +456,7 @@ export default function Chat() {
           className="flex-1 overflow-y-auto px-4 py-6 space-y-2"
         >
           <ul>
-            {messages.map((message, index) => renderMessage(message, index))}
+            {messages.map((msg, index) => renderMessage(msg, index))}
           </ul>
         </div>
 
