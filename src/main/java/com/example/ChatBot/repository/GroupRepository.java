@@ -8,4 +8,7 @@ public interface GroupRepository extends MongoRepository<GroupDocument, String> 
 
     // Find groups where the member list contains the given mobile
     List<GroupDocument> findByMembers(String mobile);
+
+    // Fast membership check - returns true if user is a member of the group
+    boolean existsByIdAndMembers(String groupId, String mobile);
 }

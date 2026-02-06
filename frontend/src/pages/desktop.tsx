@@ -89,14 +89,16 @@ export default function DesktopChats() {
     const [isUploadingPicture, setIsUploadingPicture] = useState(false);
     const [successMessage, setSuccessMessage] = useState("");
 
-    // Load conversations
+    // Load conversations and groups on mount
     useEffect(() => {
         if (!router.isReady) return;
         if (!myMobile) {
             router.replace("/");
             return;
         }
+        // Load both conversations and groups initially
         getConversations(myMobile).then(setConversations);
+        getMyGroups(myMobile).then(setGroups);
         getOnlineMobiles().then((list) => setOnlineMobiles(new Set(list)));
         getProfilePicture(myMobile).then((pic) => {
             if (pic) setProfilePicture(pic);
@@ -157,7 +159,7 @@ export default function DesktopChats() {
                     })).sort((a, b) => b.lastMessageAt - a.lastMessageAt);
                 });
             });
-        }, 5000);
+        }, 15000); // Reduced from 5s to 15s - WebSocket handles real-time updates
         return () => clearInterval(interval);
     }, [myMobile, selectedChatId]);
 
@@ -170,17 +172,42 @@ export default function DesktopChats() {
         setConversations(prev => prev.map(c => c.id === selectedChatId ? { ...c, unreadCount: 0 } : c));
         setGroups(prev => prev.map(g => g.id === selectedChatId ? { ...g, unreadCount: 0 } : g));
 
-        const group = groups.find(g => g.id === selectedChatId);
-        if (group) {
+        // Helper to set group info
+        const setGroupInfo = (group: Group) => {
             setOtherName(group.name);
-            setOtherMobile(""); // Group has no single "other mobile"
+            setOtherMobile(""); // Groups don't have a single "other mobile"
+        };
+
+        // First check local groups state
+        const localGroup = groups.find(g => g.id === selectedChatId);
+        if (localGroup) {
+            setGroupInfo(localGroup);
         } else {
-            getConversation(selectedChatId, myMobile).then((data) => {
-                if (data) {
-                    setOtherName(data.otherParticipantName);
-                    setOtherMobile(data.otherParticipantMobile);
-                }
-            });
+            // Check local conversations state
+            const localConv = conversations.find(c => c.id === selectedChatId);
+            if (localConv) {
+                setOtherName(localConv.otherParticipantName || localConv.otherParticipantMobile || "");
+                setOtherMobile(localConv.otherParticipantMobile || "");
+            } else {
+                // Not in local state - fetch groups first to check if it's a group
+                getMyGroups(myMobile).then(newGroups => {
+                    setGroups(newGroups);
+                    const foundGroup = newGroups.find(g => g.id === selectedChatId);
+                    if (foundGroup) {
+                        setGroupInfo(foundGroup);
+                    } else {
+                        // Only try conversation API if not a group
+                        getConversation(selectedChatId, myMobile)
+                            .then((data) => {
+                                if (data) {
+                                    setOtherName(data.otherParticipantName);
+                                    setOtherMobile(data.otherParticipantMobile);
+                                }
+                            })
+                            .catch(() => { /* Silently ignore if not found */ });
+                    }
+                });
+            }
         }
 
         getMessages(selectedChatId, myMobile).then((list) =>
@@ -680,7 +707,7 @@ export default function DesktopChats() {
                         {filteredGroups.map((group) => {
                             const isActive = group.id === selectedChatId;
                             return (
-                                <li key={group.id}>
+                                <li key={`group-${group.id}`}>
                                     <button
                                         type="button"
                                         onClick={() => router.push(`/desktop?mobile=${encodeURIComponent(myMobile)}&chatId=${group.id}`, undefined, { shallow: true })}
@@ -722,7 +749,7 @@ export default function DesktopChats() {
                             const isSelected = selectedIds.has(conv.id);
                             const isActive = conv.id === selectedChatId;
                             return (
-                                <li key={conv.id}>
+                                <li key={`conv-${conv.id}`}>
                                     <button
                                         type="button"
                                         onClick={() => handleChatClick(conv)}
@@ -1161,7 +1188,12 @@ export default function DesktopChats() {
                 />
             )}
 
-            <DesktopLayout sidebar={Sidebar} main={MainPanel} showMain={!!selectedChatId} />
+            <DesktopLayout
+                sidebar={Sidebar}
+                main={MainPanel}
+                showMain={!!selectedChatId}
+                activeSection={selectedChatId && groups.some(g => g.id === selectedChatId) ? "groups" : "chats"}
+            />
         </>
     );
 }

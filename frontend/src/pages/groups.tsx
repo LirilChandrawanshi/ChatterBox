@@ -23,12 +23,12 @@ export default function GroupsPage() {
             .finally(() => setLoading(false));
     }, [mobile]);
 
-    // Poll for updates
+    // Poll for updates (reduced frequency - WebSocket handles real-time)
     useEffect(() => {
         if (!mobile) return;
         const interval = setInterval(() => {
             getMyGroups(mobile).then(setGroups);
-        }, 5000);
+        }, 15000); // Reduced from 5s to 15s - WebSocket handles real-time updates
         return () => clearInterval(interval);
     }, [mobile]);
 

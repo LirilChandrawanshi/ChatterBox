@@ -127,15 +127,9 @@ public class ConversationController {
         if (limit > 100)
             limit = 100;
 
-        // Verify user is participant in conversation OR member of group
-        boolean isConversationParticipant = conversationService.listForUser(mobile).stream()
-                .anyMatch(c -> c.getId().equals(id));
-
-        boolean isGroupMember = false;
-        GroupDocument group = groupService.getGroup(id);
-        if (group != null) {
-            isGroupMember = group.getMembers().contains(mobile);
-        }
+        // Efficient membership check - doesn't load all conversations
+        boolean isConversationParticipant = conversationService.isUserParticipant(id, mobile);
+        boolean isGroupMember = groupService.isUserMember(id, mobile);
 
         if (!isConversationParticipant && !isGroupMember) {
             return ResponseEntity.notFound().build();

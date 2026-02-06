@@ -73,4 +73,16 @@ public class ConversationService {
                 })
                 .orElse(false);
     }
+
+    /**
+     * Fast check if a user is a participant in a conversation without loading all
+     * conversations.
+     */
+    public boolean isUserParticipant(String conversationId, String mobile) {
+        String m = UserDocument.normalizeMobile(mobile);
+        if (m == null || conversationId == null)
+            return false;
+        return conversationRepository.existsByIdAndParticipant1(conversationId, m)
+                || conversationRepository.existsByIdAndParticipant2(conversationId, m);
+    }
 }

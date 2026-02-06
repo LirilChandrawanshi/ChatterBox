@@ -1,6 +1,7 @@
 package com.example.ChatBot.model;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 /**
@@ -13,6 +14,7 @@ public class ChatMessageDocument {
     @Id
     private String id;
 
+    @Indexed
     private String conversationId;
 
     private Entity.MessageType type;

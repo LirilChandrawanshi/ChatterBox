@@ -36,4 +36,12 @@ public class GroupService {
     public GroupDocument save(GroupDocument group) {
         return groupRepository.save(group);
     }
+
+    /**
+     * Fast check if a user is a member of a group without loading the full
+     * document.
+     */
+    public boolean isUserMember(String groupId, String mobile) {
+        return groupRepository.existsByIdAndMembers(groupId, mobile);
+    }
 }
