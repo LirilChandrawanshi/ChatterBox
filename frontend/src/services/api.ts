@@ -1,4 +1,5 @@
-const getBase = () => process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+const getBase = () =>
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 const AUTH_TOKEN_KEY = "chatterbox_token";
 
@@ -76,7 +77,7 @@ export interface AuthResponse {
 export async function signup(
   mobile: string,
   displayName: string,
-  password: string
+  password: string,
 ): Promise<AuthResponse> {
   const res = await fetch(`${getBase()}/api/auth/signup`, {
     method: "POST",
@@ -88,26 +89,37 @@ export async function signup(
     }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((data as { error?: string }).error || "Signup failed");
+  if (!res.ok)
+    throw new Error((data as { error?: string }).error || "Signup failed");
   return data as AuthResponse;
 }
 
-export async function login(mobile: string, password: string): Promise<AuthResponse> {
+export async function login(
+  mobile: string,
+  password: string,
+): Promise<AuthResponse> {
   const res = await fetch(`${getBase()}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ mobile: mobile.trim(), password }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((data as { error?: string }).error || "Login failed");
+  if (!res.ok)
+    throw new Error((data as { error?: string }).error || "Login failed");
   return data as AuthResponse;
 }
 
-export async function register(mobile: string, displayName: string): Promise<User> {
+export async function register(
+  mobile: string,
+  displayName: string,
+): Promise<User> {
   const res = await fetch(`${getBase()}/api/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mobile: mobile.trim(), displayName: displayName.trim() || mobile.trim() }),
+    body: JSON.stringify({
+      mobile: mobile.trim(),
+      displayName: displayName.trim() || mobile.trim(),
+    }),
   });
   if (!res.ok) throw new Error("Registration failed");
   return res.json();
@@ -129,8 +141,12 @@ export async function getOnlineMobiles(): Promise<string[]> {
   return res.json();
 }
 
-export async function getConversations(mobile: string): Promise<ConversationSummary[]> {
-  const res = await fetch(`${getBase()}/api/conversations?mobile=${encodeURIComponent(mobile)}`);
+export async function getConversations(
+  mobile: string,
+): Promise<ConversationSummary[]> {
+  const res = await fetch(
+    `${getBase()}/api/conversations?mobile=${encodeURIComponent(mobile)}`,
+  );
   if (!res.ok) return [];
   const list = await res.json();
   return list;
@@ -138,13 +154,21 @@ export async function getConversations(mobile: string): Promise<ConversationSumm
 
 export async function getOrCreateConversation(
   myMobile: string,
-  otherUserMobile: string
-): Promise<ConversationSummary & { otherParticipantName: string; otherParticipantMobile: string }> {
-  const res = await fetch(`${getBase()}/api/conversations?mobile=${encodeURIComponent(myMobile)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ otherUserMobile: otherUserMobile.trim() }),
-  });
+  otherUserMobile: string,
+): Promise<
+  ConversationSummary & {
+    otherParticipantName: string;
+    otherParticipantMobile: string;
+  }
+> {
+  const res = await fetch(
+    `${getBase()}/api/conversations?mobile=${encodeURIComponent(myMobile)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ otherUserMobile: otherUserMobile.trim() }),
+    },
+  );
   if (!res.ok) {
     // Try to extract error message from response
     let errorMessage = "Failed to start conversation";
@@ -163,10 +187,13 @@ export async function getOrCreateConversation(
 
 export async function getConversation(
   id: string,
-  mobile: string
-): Promise<{ otherParticipantName: string; otherParticipantMobile: string } | null> {
+  mobile: string,
+): Promise<{
+  otherParticipantName: string;
+  otherParticipantMobile: string;
+} | null> {
   const res = await fetch(
-    `${getBase()}/api/conversations/${id}?mobile=${encodeURIComponent(mobile)}`
+    `${getBase()}/api/conversations/${id}?mobile=${encodeURIComponent(mobile)}`,
   );
   if (!res.ok) return null;
   return res.json();
@@ -191,10 +218,10 @@ export interface ChatMessage {
 export async function getMessages(
   conversationId: string,
   mobile: string,
-  limit = 50
+  limit = 50,
 ): Promise<ChatMessage[]> {
   const res = await fetch(
-    `${getBase()}/api/conversations/${conversationId}/messages?mobile=${encodeURIComponent(mobile)}&limit=${limit}`
+    `${getBase()}/api/conversations/${conversationId}/messages?mobile=${encodeURIComponent(mobile)}&limit=${limit}`,
   );
   if (!res.ok) return [];
   return res.json();
@@ -213,7 +240,7 @@ export async function sendMessage(
   conversationId: string,
   mobile: string,
   content: string,
-  replyTo?: { id: string; content: string; sender: string }
+  replyTo?: { id: string; content: string; sender: string },
 ): Promise<ChatMessage> {
   const payload: any = { content: content.trim() };
   if (replyTo) {
@@ -227,7 +254,7 @@ export async function sendMessage(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-    }
+    },
   );
   if (!res.ok) throw new Error("Send failed");
   return res.json();
@@ -237,7 +264,7 @@ export async function sendFileMessage(
   conversationId: string,
   mobile: string,
   fileContent: string,
-  fileType: string
+  fileType: string,
 ): Promise<ChatMessage> {
   const res = await fetch(
     `${getBase()}/api/conversations/${conversationId}/messages?mobile=${encodeURIComponent(mobile)}`,
@@ -245,70 +272,103 @@ export async function sendFileMessage(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fileContent, fileType }),
-    }
+    },
   );
   if (!res.ok) throw new Error("Send failed");
   return res.json();
 }
 
 // Profile management functions
-export async function updateDisplayName(mobile: string, newName: string): Promise<User> {
-  const res = await fetch(`${getBase()}/api/users/profile?mobile=${encodeURIComponent(mobile)}`, {
-    method: "PUT",
-    headers: authHeaders(),
-    body: JSON.stringify({ displayName: newName.trim() }),
-  });
+export async function updateDisplayName(
+  mobile: string,
+  newName: string,
+): Promise<User> {
+  const res = await fetch(
+    `${getBase()}/api/users/profile?mobile=${encodeURIComponent(mobile)}`,
+    {
+      method: "PUT",
+      headers: authHeaders(),
+      body: JSON.stringify({ displayName: newName.trim() }),
+    },
+  );
   if (!res.ok) throw new Error("Failed to update name");
   return res.json();
 }
 
-export async function updateProfilePicture(mobile: string, base64Image: string): Promise<void> {
-  const res = await fetch(`${getBase()}/api/users/profile/picture?mobile=${encodeURIComponent(mobile)}`, {
-    method: "PUT",
-    headers: authHeaders(),
-    body: JSON.stringify({ picture: base64Image }),
-  });
+export async function updateProfilePicture(
+  mobile: string,
+  base64Image: string,
+): Promise<void> {
+  const res = await fetch(
+    `${getBase()}/api/users/profile/picture?mobile=${encodeURIComponent(mobile)}`,
+    {
+      method: "PUT",
+      headers: authHeaders(),
+      body: JSON.stringify({ picture: base64Image }),
+    },
+  );
   if (!res.ok) throw new Error("Failed to update profile picture");
 }
 
-export async function getProfilePicture(mobile: string): Promise<string | null> {
-  const res = await fetch(`${getBase()}/api/users/profile/picture?mobile=${encodeURIComponent(mobile)}`, {
-    headers: authHeaders(),
-  });
+export async function getProfilePicture(
+  mobile: string,
+): Promise<string | null> {
+  const res = await fetch(
+    `${getBase()}/api/users/profile/picture?mobile=${encodeURIComponent(mobile)}`,
+    {
+      headers: authHeaders(),
+    },
+  );
   if (!res.ok) return null;
   const data = await res.json();
   return data.picture || null;
 }
 
 export async function updateBio(mobile: string, bio: string): Promise<User> {
-  const res = await fetch(`${getBase()}/api/users/profile/bio?mobile=${encodeURIComponent(mobile)}`, {
-    method: "PUT",
-    headers: authHeaders(),
-    body: JSON.stringify({ bio: bio.trim() }),
-  });
+  const res = await fetch(
+    `${getBase()}/api/users/profile/bio?mobile=${encodeURIComponent(mobile)}`,
+    {
+      method: "PUT",
+      headers: authHeaders(),
+      body: JSON.stringify({ bio: bio.trim() }),
+    },
+  );
   if (!res.ok) throw new Error("Failed to update bio");
   return res.json();
 }
 
 export async function getBio(mobile: string): Promise<string> {
-  const res = await fetch(`${getBase()}/api/users/profile/bio?mobile=${encodeURIComponent(mobile)}`, {
-    headers: authHeaders(),
-  });
+  const res = await fetch(
+    `${getBase()}/api/users/profile/bio?mobile=${encodeURIComponent(mobile)}`,
+    {
+      headers: authHeaders(),
+    },
+  );
   if (!res.ok) return "";
   const data = await res.json();
   return data.bio || "";
 }
 
-export async function getUserProfile(mobile: string): Promise<UserProfile | null> {
-  const res = await fetch(`${getBase()}/api/users/profile/${encodeURIComponent(mobile)}`, {
-    headers: authHeaders(),
-  });
+export async function getUserProfile(
+  mobile: string,
+): Promise<UserProfile | null> {
+  const res = await fetch(
+    `${getBase()}/api/users/profile/${encodeURIComponent(mobile)}`,
+    {
+      headers: authHeaders(),
+    },
+  );
   if (!res.ok) return null;
   return res.json();
 }
 
 // Group API
-export async function createGroup(name: string, description: string, adminMobile: string, members: string[]): Promise<Group> {
+export async function createGroup(
+  name: string,
+  description: string,
+  adminMobile: string,
+  members: string[],
+): Promise<Group> {
   const res = await fetch(`${getBase()}/api/groups`, {
     method: "POST",
     headers: authHeaders(),
@@ -319,24 +379,35 @@ export async function createGroup(name: string, description: string, adminMobile
 }
 
 export async function getMyGroups(mobile: string): Promise<Group[]> {
-  const res = await fetch(`${getBase()}/api/groups?mobile=${encodeURIComponent(mobile)}`, {
-    headers: authHeaders(),
-  });
+  const res = await fetch(
+    `${getBase()}/api/groups?mobile=${encodeURIComponent(mobile)}`,
+    {
+      headers: authHeaders(),
+    },
+  );
   if (!res.ok) throw new Error("Failed to fetch groups");
   return res.json();
 }
 
 // Conversation management functions
-export async function deleteConversation(conversationId: string, mobile: string): Promise<boolean> {
+export async function deleteConversation(
+  conversationId: string,
+  mobile: string,
+): Promise<boolean> {
   const res = await fetch(
     `${getBase()}/api/conversations/${conversationId}?mobile=${encodeURIComponent(mobile)}`,
-    { method: "DELETE", headers: authHeaders() }
+    { method: "DELETE", headers: authHeaders() },
   );
   return res.ok;
 }
 
-export async function deleteMultipleConversations(conversationIds: string[], mobile: string): Promise<boolean[]> {
-  return Promise.all(conversationIds.map((id) => deleteConversation(id, mobile)));
+export async function deleteMultipleConversations(
+  conversationIds: string[],
+  mobile: string,
+): Promise<boolean[]> {
+  return Promise.all(
+    conversationIds.map((id) => deleteConversation(id, mobile)),
+  );
 }
 
 // ==================== STATUS API ====================
@@ -362,45 +433,66 @@ export interface UserStatuses {
 
 export async function createStatus(
   mobile: string,
-  data: { content?: string; imageBase64?: string; imageType?: string }
+  data: { content?: string; imageBase64?: string; imageType?: string },
 ): Promise<StatusItem> {
-  const res = await fetch(`${getBase()}/api/status?mobile=${encodeURIComponent(mobile)}`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify(data),
-  });
+  const res = await fetch(
+    `${getBase()}/api/status?mobile=${encodeURIComponent(mobile)}`,
+    {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(data),
+    },
+  );
   if (!res.ok) throw new Error("Failed to create status");
   return res.json();
 }
 
 export async function getStatuses(mobile: string): Promise<UserStatuses[]> {
-  const res = await fetch(`${getBase()}/api/status?mobile=${encodeURIComponent(mobile)}`, {
-    headers: authHeaders(),
-  });
+  const res = await fetch(
+    `${getBase()}/api/status?mobile=${encodeURIComponent(mobile)}`,
+    {
+      headers: authHeaders(),
+    },
+  );
   if (!res.ok) return [];
   return res.json();
 }
 
 export async function getMyStatuses(mobile: string): Promise<StatusItem[]> {
-  const res = await fetch(`${getBase()}/api/status/my?mobile=${encodeURIComponent(mobile)}`, {
-    headers: authHeaders(),
-  });
+  const res = await fetch(
+    `${getBase()}/api/status/my?mobile=${encodeURIComponent(mobile)}`,
+    {
+      headers: authHeaders(),
+    },
+  );
   if (!res.ok) return [];
   return res.json();
 }
 
-export async function viewStatus(statusId: string, mobile: string): Promise<void> {
-  await fetch(`${getBase()}/api/status/${statusId}/view?mobile=${encodeURIComponent(mobile)}`, {
-    method: "POST",
-    headers: authHeaders(),
-  });
+export async function viewStatus(
+  statusId: string,
+  mobile: string,
+): Promise<void> {
+  await fetch(
+    `${getBase()}/api/status/${statusId}/view?mobile=${encodeURIComponent(mobile)}`,
+    {
+      method: "POST",
+      headers: authHeaders(),
+    },
+  );
 }
 
-export async function deleteStatus(statusId: string, mobile: string): Promise<boolean> {
-  const res = await fetch(`${getBase()}/api/status/${statusId}?mobile=${encodeURIComponent(mobile)}`, {
-    method: "DELETE",
-    headers: authHeaders(),
-  });
+export async function deleteStatus(
+  statusId: string,
+  mobile: string,
+): Promise<boolean> {
+  const res = await fetch(
+    `${getBase()}/api/status/${statusId}?mobile=${encodeURIComponent(mobile)}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(),
+    },
+  );
   return res.ok;
 }
 
@@ -427,13 +519,16 @@ export interface CommunityPost {
 
 export async function createCommunityPost(
   mobile: string,
-  data: { content?: string; imageBase64?: string; imageType?: string }
+  data: { content?: string; imageBase64?: string; imageType?: string },
 ): Promise<CommunityPost> {
-  const res = await fetch(`${getBase()}/api/community?mobile=${encodeURIComponent(mobile)}`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify(data),
-  });
+  const res = await fetch(
+    `${getBase()}/api/community?mobile=${encodeURIComponent(mobile)}`,
+    {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(data),
+    },
+  );
   if (!res.ok) throw new Error("Failed to create post");
   return res.json();
 }
@@ -446,11 +541,17 @@ export async function getCommunityPosts(): Promise<CommunityPost[]> {
   return res.json();
 }
 
-export async function togglePostLike(postId: string, mobile: string): Promise<CommunityPost> {
-  const res = await fetch(`${getBase()}/api/community/${postId}/like?mobile=${encodeURIComponent(mobile)}`, {
-    method: "POST",
-    headers: authHeaders(),
-  });
+export async function togglePostLike(
+  postId: string,
+  mobile: string,
+): Promise<CommunityPost> {
+  const res = await fetch(
+    `${getBase()}/api/community/${postId}/like?mobile=${encodeURIComponent(mobile)}`,
+    {
+      method: "POST",
+      headers: authHeaders(),
+    },
+  );
   if (!res.ok) throw new Error("Failed to like post");
   return res.json();
 }
@@ -458,21 +559,30 @@ export async function togglePostLike(postId: string, mobile: string): Promise<Co
 export async function addPostComment(
   postId: string,
   mobile: string,
-  content: string
+  content: string,
 ): Promise<CommunityPost> {
-  const res = await fetch(`${getBase()}/api/community/${postId}/comment?mobile=${encodeURIComponent(mobile)}`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({ content }),
-  });
+  const res = await fetch(
+    `${getBase()}/api/community/${postId}/comment?mobile=${encodeURIComponent(mobile)}`,
+    {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ content }),
+    },
+  );
   if (!res.ok) throw new Error("Failed to add comment");
   return res.json();
 }
 
-export async function deleteCommunityPost(postId: string, mobile: string): Promise<boolean> {
-  const res = await fetch(`${getBase()}/api/community/${postId}?mobile=${encodeURIComponent(mobile)}`, {
-    method: "DELETE",
-    headers: authHeaders(),
-  });
+export async function deleteCommunityPost(
+  postId: string,
+  mobile: string,
+): Promise<boolean> {
+  const res = await fetch(
+    `${getBase()}/api/community/${postId}?mobile=${encodeURIComponent(mobile)}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(),
+    },
+  );
   return res.ok;
 }

@@ -39,6 +39,7 @@ export default function ConversationPage() {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const sendTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isTypingSentRef = useRef(false);
+  const messagesRef = useRef<ChatMessage[]>([]);
 
   // Message selection & Reply state
   const [selectionMode, setSelectionMode] = useState(false);
@@ -154,6 +155,10 @@ export default function ConversationPage() {
   }, [router.isReady, myMobile, convId]);
 
   useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
     if (!myMobile || !convId) return;
     wsService.connect(
       myMobile,
@@ -185,7 +190,7 @@ export default function ConversationPage() {
         // Mark all messages as read by other user
         setReadMessageIds((prev) => {
           const next = new Set(prev);
-          messages.forEach((m) => {
+          messagesRef.current.forEach((m) => {
             if (m.sender === myMobile && m.id) next.add(m.id);
           });
           return next;
@@ -209,7 +214,7 @@ export default function ConversationPage() {
     };
     wsService.onMessage(handler);
     return () => wsService.disconnect();
-  }, [myMobile, convId, messages]);
+  }, [myMobile, convId]);
 
   useEffect(() => {
     if (messageAreaRef.current) {
