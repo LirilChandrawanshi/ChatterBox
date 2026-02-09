@@ -1,18 +1,25 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
-import { Plus, X, Eye, ChevronLeft, ChevronRight, Trash2, ArrowLeft, Disc } from "lucide-react";
+import { Plus, X, Eye, ChevronLeft, ChevronRight, Trash2, ArrowLeft, Disc, ChevronUp } from "lucide-react";
 import DesktopLayout from "@/components/DesktopLayout";
 import {
     getStatuses,
     createStatus,
     viewStatus,
     deleteStatus,
+    getUserProfile,
     type UserStatuses,
     type StatusItem,
+    type UserProfile,
 } from "@/services/api";
 import { getStoredUser } from "./index";
 import BottomNav from "@/components/BottomNav";
+
+interface ViewerInfo {
+    mobile: string;
+    displayName: string;
+}
 
 export default function Status() {
     const router = useRouter();
@@ -30,6 +37,11 @@ export default function Status() {
     const [viewingUser, setViewingUser] = useState<UserStatuses | null>(null);
     const [currentStatusIndex, setCurrentStatusIndex] = useState(0);
     const progressRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Viewers modal state
+    const [showViewersModal, setShowViewersModal] = useState(false);
+    const [viewers, setViewers] = useState<ViewerInfo[]>([]);
+    const [loadingViewers, setLoadingViewers] = useState(false);
 
     useEffect(() => {
         if (!router.isReady) return;
@@ -99,6 +111,40 @@ export default function Status() {
         await deleteStatus(statusId, myMobile);
         closeViewer();
         await loadStatuses();
+    };
+
+    // Fetch and show viewers for current status
+    const handleShowViewers = async () => {
+        if (!viewingUser) return;
+        const currentStatus = viewingUser.statuses[currentStatusIndex];
+        if (currentStatus.viewedBy.length === 0) return;
+
+        setShowViewersModal(true);
+        setLoadingViewers(true);
+        setViewers([]);
+
+        try {
+            // Fetch profile info for each viewer
+            const viewerProfiles = await Promise.all(
+                currentStatus.viewedBy.map(async (mobile) => {
+                    try {
+                        const profile = await getUserProfile(mobile);
+                        return {
+                            mobile,
+                            displayName: profile?.displayName || mobile,
+                        };
+                    } catch {
+                        return { mobile, displayName: mobile };
+                    }
+                })
+            );
+            setViewers(viewerProfiles);
+        } catch {
+            // Fallback to just mobile numbers
+            setViewers(currentStatus.viewedBy.map(m => ({ mobile: m, displayName: m })));
+        } finally {
+            setLoadingViewers(false);
+        }
     };
 
     // ... existing logic ...
@@ -180,7 +226,10 @@ export default function Status() {
                 <div>
                     <p className="text-xs text-[#00a884] font-medium uppercase tracking-wide mb-3 pl-1">Recent Updates</p>
                     {loading ? (
-                        <p className="text-[#8696a0] text-center py-4 text-sm">Loading...</p>
+                        <div className="flex flex-col items-center justify-center py-8">
+                            <div className="w-6 h-6 border-3 border-[#00a884] border-t-transparent rounded-full animate-spin mb-2"></div>
+                            <p className="text-[#8696a0] text-center text-sm">Loading statuses...</p>
+                        </div>
                     ) : userStatuses.filter(u => !u.isOwn).length === 0 ? (
                         <div className="p-4 text-center rounded-xl border border-dashed border-[#2a3942]">
                             <p className="text-[#8696a0] text-sm">No recent status updates</p>
@@ -276,9 +325,14 @@ export default function Status() {
                                 <button
                                     type="submit"
                                     disabled={creating || !newStatusText.trim()}
-                                    className="flex-1 py-2.5 rounded-xl bg-[#00a884] text-white hover:bg-[#06cf9c] disabled:opacity-50 transition shadow-lg"
+                                    className="flex-1 py-2.5 rounded-xl bg-[#00a884] text-white hover:bg-[#06cf9c] disabled:opacity-50 transition shadow-lg flex items-center justify-center gap-2"
                                 >
-                                    {creating ? "Posting..." : "Post"}
+                                    {creating ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                            <span>Posting...</span>
+                                        </>
+                                    ) : "Post"}
                                 </button>
                             </div>
                         </form>
@@ -347,12 +401,88 @@ export default function Status() {
                         </div>
                     </div>
 
-                    {/* Viewers (for own status) */}
+                    {/* Viewers (for own status) - Clickable to show viewer names */}
                     {viewingUser.isOwn && (
                         <div className="p-6 bg-gradient-to-t from-black/80 to-transparent pb-10">
-                            <div className="flex items-center justify-center gap-2 text-white/80 text-sm font-medium">
+                            <button
+                                type="button"
+                                onClick={handleShowViewers}
+                                disabled={viewingUser.statuses[currentStatusIndex].viewedBy.length === 0}
+                                className="flex items-center justify-center gap-2 text-white/80 text-sm font-medium hover:text-white transition mx-auto disabled:cursor-default"
+                            >
                                 <Eye className="w-4 h-4" />
                                 <span>{viewingUser.statuses[currentStatusIndex].viewedBy.length} views</span>
+                                {viewingUser.statuses[currentStatusIndex].viewedBy.length > 0 && (
+                                    <ChevronUp className="w-4 h-4" />
+                                )}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Viewers Modal - Shows who viewed the status */}
+                    {showViewersModal && (
+                        <div
+                            className="absolute inset-0 z-20 flex items-end justify-center"
+                            onClick={() => setShowViewersModal(false)}
+                        >
+                            <div
+                                className="bg-[#1f2c34] w-full max-w-md rounded-t-3xl max-h-[70vh] overflow-hidden animate-slide-up"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                {/* Modal Header */}
+                                <div className="flex items-center justify-between p-4 border-b border-[#2a3942]">
+                                    <div className="flex items-center gap-2">
+                                        <Eye className="w-5 h-5 text-[#00a884]" />
+                                        <h3 className="text-white font-semibold">
+                                            Viewed by {viewingUser.statuses[currentStatusIndex].viewedBy.length}
+                                        </h3>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowViewersModal(false)}
+                                        className="p-2 rounded-full hover:bg-[#2a3942] text-[#8696a0] hover:text-white transition"
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
+
+                                {/* Viewers List */}
+                                <div className="overflow-y-auto max-h-[60vh] p-2">
+                                    {loadingViewers ? (
+                                        <div className="flex flex-col items-center justify-center py-8">
+                                            <div className="w-6 h-6 border-3 border-[#00a884] border-t-transparent rounded-full animate-spin mb-2"></div>
+                                            <p className="text-[#8696a0] text-sm">Loading viewers...</p>
+                                        </div>
+                                    ) : viewers.length === 0 ? (
+                                        <div className="text-center py-8">
+                                            <p className="text-[#8696a0]">No viewers yet</p>
+                                        </div>
+                                    ) : (
+                                        <ul className="space-y-1">
+                                            {viewers.map((viewer) => (
+                                                <li
+                                                    key={viewer.mobile}
+                                                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-[#2a3942]/50 transition"
+                                                >
+                                                    <div
+                                                        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm ring-2 ring-[#2a3942]"
+                                                        style={{ backgroundColor: getColor(viewer.mobile) }}
+                                                    >
+                                                        {viewer.displayName.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-white font-medium truncate">
+                                                            {viewer.displayName}
+                                                        </p>
+                                                        <p className="text-[#8696a0] text-sm truncate">
+                                                            {viewer.mobile}
+                                                        </p>
+                                                    </div>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     )}

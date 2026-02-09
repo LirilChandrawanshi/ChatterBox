@@ -191,6 +191,7 @@ export async function getConversation(
 ): Promise<{
   otherParticipantName: string;
   otherParticipantMobile: string;
+  otherLastReadAt?: number;
 } | null> {
   const res = await fetch(
     `${getBase()}/api/conversations/${id}?mobile=${encodeURIComponent(mobile)}`,

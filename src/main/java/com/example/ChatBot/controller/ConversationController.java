@@ -40,10 +40,22 @@ public class ConversationController {
      * GET /api/conversations?mobile=xxx
      * List conversations for the user (most recent first), with other participant
      * info.
+     * OPTIMIZED: Uses batch user lookup to avoid N+1 queries.
      */
     @GetMapping
     public ResponseEntity<List<Map<String, Object>>> list(@RequestParam String mobile) {
         List<ConversationDocument> list = conversationService.listForUser(mobile);
+
+        // Collect all other participant mobiles for batch lookup
+        List<String> otherMobiles = list.stream()
+                .map(conv -> conv.getOtherParticipant(mobile))
+                .distinct()
+                .toList();
+
+        // Single DB query to get all user profiles
+        Map<String, UserDocument> userMap = userService.findByMobiles(otherMobiles);
+
+        // Build response using cached user data - O(1) lookups
         List<Map<String, Object>> result = list.stream().map(conv -> {
             Map<String, Object> map = new HashMap<>();
             map.put("id", conv.getId());
@@ -53,7 +65,7 @@ public class ConversationController {
             map.put("lastMessagePreview", conv.getLastMessagePreview());
             String otherMobile = conv.getOtherParticipant(mobile);
             map.put("otherParticipantMobile", otherMobile);
-            UserDocument otherUser = userService.findByMobile(otherMobile);
+            UserDocument otherUser = userMap.get(otherMobile);
             map.put("otherParticipantName", otherUser != null ? otherUser.getDisplayName() : otherMobile);
             return map;
         }).toList();
@@ -106,12 +118,15 @@ public class ConversationController {
                 .map(conv -> {
                     Map<String, Object> map = new HashMap<>();
                     map.put("id", conv.getId());
-                    map.put("otherParticipantMobile", conv.getOtherParticipant(mobile));
-                    UserDocument other = userService.findByMobile(conv.getOtherParticipant(mobile));
+                    String otherMobile = conv.getOtherParticipant(mobile);
+                    map.put("otherParticipantMobile", otherMobile);
+                    UserDocument other = userService.findByMobile(otherMobile);
                     map.put("otherParticipantName",
-                            other != null ? other.getDisplayName() : conv.getOtherParticipant(mobile));
+                            other != null ? other.getDisplayName() : otherMobile);
                     map.put("lastMessageAt", conv.getLastMessageAt());
                     map.put("lastMessagePreview", conv.getLastMessagePreview());
+                    // Include when the OTHER user last read (for showing blue ticks on my messages)
+                    map.put("otherLastReadAt", conv.getLastReadBy(otherMobile));
                     return ResponseEntity.ok(map);
                 })
                 .orElse(ResponseEntity.notFound().build());

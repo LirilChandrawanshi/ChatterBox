@@ -266,9 +266,14 @@ export default function Settings() {
                                                 type="button"
                                                 onClick={handleSaveBio}
                                                 disabled={isSavingBio}
-                                                className="px-4 py-1.5 rounded-full bg-[#00a884] hover:bg-[#06cf9c] text-white text-sm font-medium transition-colors disabled:opacity-50"
+                                                className="px-4 py-1.5 rounded-full bg-[#00a884] hover:bg-[#06cf9c] text-white text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
                                             >
-                                                {isSavingBio ? "Saving..." : "Save"}
+                                                {isSavingBio ? (
+                                                    <>
+                                                        <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                        <span>Saving...</span>
+                                                    </>
+                                                ) : "Save"}
                                             </button>
                                         </div>
                                     </div>

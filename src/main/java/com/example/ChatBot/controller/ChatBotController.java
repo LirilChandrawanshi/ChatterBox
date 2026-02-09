@@ -94,16 +94,18 @@ public class ChatBotController {
             String convId = chatMessage.getConversationId();
             String sender = chatMessage.getSender();
 
-            // Find the conversation and notify the other participant
-            conversationService.listForUser(sender).stream()
-                    .filter(c -> c.getId().equals(convId))
-                    .findFirst()
-                    .ifPresent(conv -> {
-                        String otherMobile = conv.getOtherParticipant(sender);
-                        chatMessage.setType(Entity.MessageType.READ);
-                        chatMessage.setTimestamp(System.currentTimeMillis());
-                        messagingTemplate.convertAndSendToUser(otherMobile, "/queue/messages", chatMessage);
-                    });
+            // Persist read status to database
+            var updatedConv = conversationService.markAsRead(convId, sender);
+            if (updatedConv == null)
+                return;
+
+            // Notify the other participant in real-time
+            String otherMobile = updatedConv.getOtherParticipant(sender);
+            if (otherMobile != null) {
+                chatMessage.setType(Entity.MessageType.READ);
+                chatMessage.setTimestamp(System.currentTimeMillis());
+                messagingTemplate.convertAndSendToUser(otherMobile, "/queue/messages", chatMessage);
+            }
         }
     }
 

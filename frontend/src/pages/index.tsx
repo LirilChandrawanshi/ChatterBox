@@ -113,11 +113,10 @@ export default function Home() {
                   setTab("login");
                   setError("");
                 }}
-                className={`flex-1 py-3 text-sm font-medium transition ${
-                  tab === "login"
+                className={`flex-1 py-3 text-sm font-medium transition ${tab === "login"
                     ? "text-[#00a884] border-b-2 border-[#00a884]"
                     : "text-[#8696a0] hover:text-white"
-                }`}
+                  }`}
               >
                 Login
               </button>
@@ -127,11 +126,10 @@ export default function Home() {
                   setTab("signup");
                   setError("");
                 }}
-                className={`flex-1 py-3 text-sm font-medium transition ${
-                  tab === "signup"
+                className={`flex-1 py-3 text-sm font-medium transition ${tab === "signup"
                     ? "text-[#00a884] border-b-2 border-[#00a884]"
                     : "text-[#8696a0] hover:text-white"
-                }`}
+                  }`}
               >
                 Sign up
               </button>
@@ -193,9 +191,14 @@ export default function Home() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-[#00a884] hover:bg-[#06cf9c] text-white py-3 rounded-xl font-medium transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#00a884]/20"
+                  className="w-full bg-[#00a884] hover:bg-[#06cf9c] text-white py-3 rounded-xl font-medium transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#00a884]/20 flex items-center justify-center gap-2"
                 >
-                  {loading ? "Please wait…" : tab === "login" ? "Log in" : "Create account"}
+                  {loading ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Please wait...</span>
+                    </>
+                  ) : tab === "login" ? "Log in" : "Create account"}
                 </button>
               </form>
             </div>

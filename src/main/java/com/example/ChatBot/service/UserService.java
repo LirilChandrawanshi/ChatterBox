@@ -72,6 +72,28 @@ public class UserService {
     }
 
     /**
+     * Batch lookup users by mobile numbers - single DB query for all.
+     * Returns a map of mobile -> UserDocument for O(1) lookups.
+     */
+    public java.util.Map<String, UserDocument> findByMobiles(java.util.List<String> mobiles) {
+        if (mobiles == null || mobiles.isEmpty()) {
+            return java.util.Collections.emptyMap();
+        }
+        java.util.List<String> normalized = mobiles.stream()
+                .map(UserDocument::normalizeMobile)
+                .filter(m -> m != null)
+                .distinct()
+                .toList();
+        java.util.List<UserDocument> users = userRepository.findByMobileIn(normalized);
+        return users.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        UserDocument::getMobile,
+                        u -> u,
+                        (a, b) -> a // handle duplicates
+                ));
+    }
+
+    /**
      * Update user's display name.
      */
     public UserDocument updateDisplayName(String mobile, String newDisplayName) {

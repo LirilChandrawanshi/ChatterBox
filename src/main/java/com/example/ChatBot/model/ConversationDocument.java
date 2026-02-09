@@ -21,6 +21,11 @@ public class ConversationDocument {
     private long lastMessageAt;
     private String lastMessagePreview;
 
+    // Track when each participant last read the conversation (for persistent read
+    // receipts)
+    private long lastReadByParticipant1;
+    private long lastReadByParticipant2;
+
     public ConversationDocument() {
     }
 
@@ -30,6 +35,8 @@ public class ConversationDocument {
         this.createdAt = System.currentTimeMillis();
         this.lastMessageAt = this.createdAt;
         this.lastMessagePreview = null;
+        this.lastReadByParticipant1 = 0;
+        this.lastReadByParticipant2 = 0;
     }
 
     public String getId() {
@@ -83,9 +90,51 @@ public class ConversationDocument {
     /** Returns the other participant's mobile given current user's mobile. */
     public String getOtherParticipant(String myMobile) {
         String m = myMobile != null ? UserDocument.normalizeMobile(myMobile) : null;
-        if (m == null) return null;
-        if (m.equals(participant1)) return participant2;
-        if (m.equals(participant2)) return participant1;
+        if (m == null)
+            return null;
+        if (m.equals(participant1))
+            return participant2;
+        if (m.equals(participant2))
+            return participant1;
         return null;
+    }
+
+    public long getLastReadByParticipant1() {
+        return lastReadByParticipant1;
+    }
+
+    public void setLastReadByParticipant1(long lastReadByParticipant1) {
+        this.lastReadByParticipant1 = lastReadByParticipant1;
+    }
+
+    public long getLastReadByParticipant2() {
+        return lastReadByParticipant2;
+    }
+
+    public void setLastReadByParticipant2(long lastReadByParticipant2) {
+        this.lastReadByParticipant2 = lastReadByParticipant2;
+    }
+
+    /** Get when a specific user last read this conversation */
+    public long getLastReadBy(String mobile) {
+        String m = mobile != null ? UserDocument.normalizeMobile(mobile) : null;
+        if (m == null)
+            return 0;
+        if (m.equals(participant1))
+            return lastReadByParticipant1;
+        if (m.equals(participant2))
+            return lastReadByParticipant2;
+        return 0;
+    }
+
+    /** Mark conversation as read by a specific user */
+    public void markReadBy(String mobile, long timestamp) {
+        String m = mobile != null ? UserDocument.normalizeMobile(mobile) : null;
+        if (m == null)
+            return;
+        if (m.equals(participant1))
+            this.lastReadByParticipant1 = timestamp;
+        else if (m.equals(participant2))
+            this.lastReadByParticipant2 = timestamp;
     }
 }

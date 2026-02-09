@@ -51,13 +51,32 @@ export default function Chats() {
       router.replace("/");
       return;
     }
-    getConversations(myMobile).then(setConversations);
-    getOnlineMobiles().then((list) => setOnlineMobiles(new Set(list)));
+
+    // Fetch conversations first, then hide loader
+    const loadData = async () => {
+      try {
+        const [convs, onlineList] = await Promise.all([
+          getConversations(myMobile),
+          getOnlineMobiles(),
+        ]);
+        setConversations(convs);
+        setOnlineMobiles(new Set(onlineList));
+      } catch (error) {
+        console.error("Failed to load chats:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+
+    // Load profile picture separately (non-blocking)
     getProfilePicture(myMobile).then((pic) => {
       if (pic) setProfilePicture(pic);
     }).catch(() => { });
+
+    // Poll for online status
     const t = setInterval(() => getOnlineMobiles().then((list) => setOnlineMobiles(new Set(list))), 10000);
-    setLoading(false);
     return () => clearInterval(t);
   }, [router.isReady, myMobile]);
 
@@ -219,10 +238,19 @@ export default function Chats() {
                 type="button"
                 onClick={handleDeleteSelected}
                 disabled={selectedIds.size === 0 || deleting}
-                className="text-sm px-3 py-1.5 rounded-lg bg-red-500/90 text-white hover:bg-red-600 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                className="text-sm px-3 py-1.5 rounded-lg bg-red-500/90 text-white hover:bg-red-600 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
-                <Trash2 className="w-4 h-4" />
-                {deleting ? "Deleting..." : "Delete"}
+                {deleting ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete</span>
+                  </>
+                )}
               </button>
               <button
                 type="button"
@@ -269,9 +297,14 @@ export default function Chats() {
                   <button
                     type="submit"
                     disabled={creating}
-                    className="flex-1 py-2.5 rounded-xl bg-[#00a884] text-white hover:bg-[#06cf9c] disabled:opacity-50 transition shadow-lg shadow-[#00a884]/20"
+                    className="flex-1 py-2.5 rounded-xl bg-[#00a884] text-white hover:bg-[#06cf9c] disabled:opacity-50 transition shadow-lg shadow-[#00a884]/20 flex items-center justify-center gap-2"
                   >
-                    {creating ? "Starting…" : "Start chat"}
+                    {creating ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Starting...</span>
+                      </>
+                    ) : "Start chat"}
                   </button>
                 </div>
               </form>
@@ -282,7 +315,10 @@ export default function Chats() {
         {/* Chat list */}
         <div className="flex-1 overflow-y-auto pb-20">
           {loading ? (
-            <div className="p-4 text-[#8696a0] text-center">Loading…</div>
+            <div className="flex flex-col items-center justify-center h-64">
+              <div className="w-8 h-8 border-4 border-[#00a884] border-t-transparent rounded-full animate-spin mb-4"></div>
+              <p className="text-[#8696a0]">Loading chats...</p>
+            </div>
           ) : conversations.length === 0 ? (
             <div className="p-8 text-center">
               <div className="w-20 h-20 mx-auto rounded-full bg-[#1f2c34] flex items-center justify-center mb-4">

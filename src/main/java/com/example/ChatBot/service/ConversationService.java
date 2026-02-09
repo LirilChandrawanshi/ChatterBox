@@ -85,4 +85,30 @@ public class ConversationService {
         return conversationRepository.existsByIdAndParticipant1(conversationId, m)
                 || conversationRepository.existsByIdAndParticipant2(conversationId, m);
     }
+
+    /**
+     * Get a conversation by ID.
+     */
+    public ConversationDocument getById(String conversationId) {
+        if (conversationId == null)
+            return null;
+        return conversationRepository.findById(conversationId).orElse(null);
+    }
+
+    /**
+     * Mark a conversation as read by a user. Returns the updated conversation.
+     */
+    public ConversationDocument markAsRead(String conversationId, String mobile) {
+        String m = UserDocument.normalizeMobile(mobile);
+        if (m == null || conversationId == null)
+            return null;
+
+        return conversationRepository.findById(conversationId)
+                .filter(conv -> m.equals(conv.getParticipant1()) || m.equals(conv.getParticipant2()))
+                .map(conv -> {
+                    conv.markReadBy(m, System.currentTimeMillis());
+                    return conversationRepository.save(conv);
+                })
+                .orElse(null);
+    }
 }

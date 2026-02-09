@@ -34,6 +34,7 @@ export default function ConversationPage() {
   const [sendingFile, setSendingFile] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [readMessageIds, setReadMessageIds] = useState<Set<string>>(new Set());
+  const [otherLastReadAt, setOtherLastReadAt] = useState<number>(0);
   const messageAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -146,6 +147,10 @@ export default function ConversationPage() {
       if (data) {
         setOtherName(data.otherParticipantName);
         setOtherMobile(data.otherParticipantMobile);
+        // Store when the other user last read (for persistent blue ticks)
+        if (data.otherLastReadAt) {
+          setOtherLastReadAt(data.otherLastReadAt);
+        }
       }
     });
     getMessages(convId, myMobile).then((list) =>
@@ -153,6 +158,22 @@ export default function ConversationPage() {
     );
     // Mark messages as read when opening chat (via WebSocket when connected)
   }, [router.isReady, myMobile, convId]);
+
+  // Mark messages as read based on persisted otherLastReadAt
+  useEffect(() => {
+    if (otherLastReadAt > 0 && messages.length > 0) {
+      setReadMessageIds((prev) => {
+        const next = new Set(prev);
+        messages.forEach((m) => {
+          // Mark my messages as read if they were sent before the other user's last read time
+          if (m.sender === myMobile && m.id && m.timestamp && m.timestamp <= otherLastReadAt) {
+            next.add(m.id);
+          }
+        });
+        return next;
+      });
+    }
+  }, [otherLastReadAt, messages, myMobile]);
 
   useEffect(() => {
     messagesRef.current = messages;

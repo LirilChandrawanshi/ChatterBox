@@ -397,9 +397,14 @@ export default function Community() {
                                 <button
                                     type="submit"
                                     disabled={creating || !newPostText.trim()}
-                                    className="px-6 py-2 rounded-full bg-[#00a884] text-white font-bold hover:bg-[#06cf9c] disabled:opacity-50 transition shadow-lg"
+                                    className="px-6 py-2 rounded-full bg-[#00a884] text-white font-bold hover:bg-[#06cf9c] disabled:opacity-50 transition shadow-lg flex items-center gap-2"
                                 >
-                                    {creating ? "Posting..." : "Post"}
+                                    {creating ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                            <span>Posting...</span>
+                                        </>
+                                    ) : "Post"}
                                 </button>
                             </div>
                         </form>
