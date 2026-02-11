@@ -11,7 +11,6 @@ import com.example.ChatBot.service.UserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.List;
@@ -52,10 +51,10 @@ public class ConversationController {
                 .distinct()
                 .toList();
 
-        // Single DB query to get all user profiles
-        Map<String, UserDocument> userMap = userService.findByMobiles(otherMobiles);
+        // Single lightweight DB query (mobile + displayName only, no profilePicture)
+        Map<String, String> displayNameMap = userService.findDisplayNamesByMobiles(otherMobiles);
 
-        // Build response using cached user data - O(1) lookups
+        // Build response using cached display names - O(1) lookups
         List<Map<String, Object>> result = list.stream().map(conv -> {
             Map<String, Object> map = new HashMap<>();
             map.put("id", conv.getId());
@@ -65,8 +64,7 @@ public class ConversationController {
             map.put("lastMessagePreview", conv.getLastMessagePreview());
             String otherMobile = conv.getOtherParticipant(mobile);
             map.put("otherParticipantMobile", otherMobile);
-            UserDocument otherUser = userMap.get(otherMobile);
-            map.put("otherParticipantName", otherUser != null ? otherUser.getDisplayName() : otherMobile);
+            map.put("otherParticipantName", displayNameMap.getOrDefault(otherMobile, otherMobile));
             return map;
         }).toList();
         return ResponseEntity.ok(result);

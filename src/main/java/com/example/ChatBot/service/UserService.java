@@ -94,6 +94,28 @@ public class UserService {
     }
 
     /**
+     * Lightweight batch lookup - only mobile and displayName (no profilePicture,
+     * hashedPassword, bio). Use for conversation list to avoid loading large
+     * base64 images.
+     */
+    public java.util.Map<String, String> findDisplayNamesByMobiles(java.util.List<String> mobiles) {
+        if (mobiles == null || mobiles.isEmpty()) {
+            return java.util.Collections.emptyMap();
+        }
+        java.util.List<String> normalized = mobiles.stream()
+                .map(UserDocument::normalizeMobile)
+                .filter(m -> m != null)
+                .distinct()
+                .toList();
+        java.util.List<UserDocument> users = userRepository.findDisplayInfoByMobileIn(normalized);
+        return users.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        UserDocument::getMobile,
+                        u -> u.getDisplayName() != null ? u.getDisplayName() : u.getMobile(),
+                        (a, b) -> a));
+    }
+
+    /**
      * Update user's display name.
      */
     public UserDocument updateDisplayName(String mobile, String newDisplayName) {

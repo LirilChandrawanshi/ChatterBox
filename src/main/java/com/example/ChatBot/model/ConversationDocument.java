@@ -10,6 +10,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
  */
 @Document(collection = "conversations")
 @CompoundIndex(name = "participants", def = "{'participant1': 1, 'participant2': 1}", unique = true)
+@CompoundIndex(name = "p1_lastMessage", def = "{'participant1': 1, 'lastMessageAt': -1}")
+@CompoundIndex(name = "p2_lastMessage", def = "{'participant2': 1, 'lastMessageAt': -1}")
 public class ConversationDocument {
 
     @Id
