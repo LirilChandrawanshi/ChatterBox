@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
-import { Plus, X, Eye, ChevronLeft, ChevronRight, Trash2, ArrowLeft, Disc, ChevronUp } from "lucide-react";
+import { Plus, X, Eye, ChevronLeft, ChevronRight, Trash2, ArrowLeft, Disc, ChevronUp, ImagePlus, XCircle } from "lucide-react";
 import DesktopLayout from "@/components/DesktopLayout";
 import {
     getStatuses,
@@ -32,6 +32,9 @@ export default function Status() {
     const [showAddModal, setShowAddModal] = useState(false);
     const [newStatusText, setNewStatusText] = useState("");
     const [creating, setCreating] = useState(false);
+    const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [selectedImageType, setSelectedImageType] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Story viewer state
     const [viewingUser, setViewingUser] = useState<UserStatuses | null>(null);
@@ -59,13 +62,48 @@ export default function Status() {
         setLoading(false);
     };
 
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        // Limit to 5MB
+        if (file.size > 5 * 1024 * 1024) {
+            alert("Image must be under 5MB");
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = reader.result as string;
+            // result is like "data:image/jpeg;base64,/9j/4AAQ..."
+            const base64 = result.split(",")[1];
+            setSelectedImage(base64);
+            setSelectedImageType(file.type);
+        };
+        reader.readAsDataURL(file);
+        // Reset file input so re-selecting the same file triggers onChange
+        e.target.value = "";
+    };
+
+    const clearSelectedImage = () => {
+        setSelectedImage(null);
+        setSelectedImageType(null);
+    };
+
     const handleCreateStatus = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newStatusText.trim()) return;
+        const hasText = newStatusText.trim().length > 0;
+        const hasImage = !!selectedImage;
+        if (!hasText && !hasImage) return;
         setCreating(true);
         try {
-            await createStatus(myMobile, { content: newStatusText.trim() });
+            const payload: { content?: string; imageBase64?: string; imageType?: string } = {};
+            if (hasText) payload.content = newStatusText.trim();
+            if (hasImage) {
+                payload.imageBase64 = selectedImage!;
+                payload.imageType = selectedImageType!;
+            }
+            await createStatus(myMobile, payload);
             setNewStatusText("");
+            clearSelectedImage();
             setShowAddModal(false);
             await loadStatuses();
         } finally {
@@ -254,8 +292,9 @@ export default function Status() {
                                             <p className="text-white font-medium text-[15px]">{user.userName}</p>
                                             <p className="text-[10px] text-[#8696a0]">{formatTime(user.statuses[0].createdAt)}</p>
                                         </div>
-                                        <p className="text-sm text-[#8696a0] line-clamp-1 opacity-80">
-                                            {user.statuses[0].content || "Image update"}
+                                        <p className="text-sm text-[#8696a0] line-clamp-1 opacity-80 flex items-center gap-1">
+                                            {user.statuses[0].imageBase64 && <ImagePlus className="w-3.5 h-3.5 shrink-0" />}
+                                            {user.statuses[0].content || "📷 Image update"}
                                         </p>
                                     </div>
                                 </button>
@@ -306,25 +345,73 @@ export default function Status() {
                     <div className="bg-[#202c33] rounded-2xl w-full max-w-sm p-6 shadow-2xl border border-[#2a3942]">
                         <h2 className="text-xl font-semibold text-white mb-4">Add Status</h2>
                         <form onSubmit={handleCreateStatus}>
+                            {/* Image Picker */}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/jpeg,image/png,image/gif,image/webp"
+                                className="hidden"
+                                onChange={handleFileSelect}
+                            />
+
+                            {selectedImage ? (
+                                <div className="relative mb-4 rounded-xl overflow-hidden border border-[#2a3942] bg-[#111b21]">
+                                    <img
+                                        src={`data:${selectedImageType};base64,${selectedImage}`}
+                                        alt="Selected"
+                                        className="w-full max-h-56 object-contain"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={clearSelectedImage}
+                                        className="absolute top-2 right-2 p-1 bg-black/60 rounded-full text-white hover:bg-black/80 transition"
+                                    >
+                                        <XCircle className="w-5 h-5" />
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="w-full mb-4 py-8 rounded-xl border-2 border-dashed border-[#2a3942] bg-[#111b21] hover:border-[#00a884] hover:bg-[#111b21]/80 transition flex flex-col items-center justify-center gap-2 group"
+                                >
+                                    <ImagePlus className="w-8 h-8 text-[#8696a0] group-hover:text-[#00a884] transition" />
+                                    <span className="text-sm text-[#8696a0] group-hover:text-[#00a884] transition">Tap to add an image</span>
+                                    <span className="text-xs text-[#8696a0]/60">JPG, PNG, GIF, WEBP &bull; Max 5MB</span>
+                                </button>
+                            )}
+
+                            {/* Replace image button when an image is selected */}
+                            {selectedImage && (
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="w-full mb-3 py-2 text-sm text-[#00a884] hover:text-[#06cf9c] transition flex items-center justify-center gap-1.5"
+                                >
+                                    <ImagePlus className="w-4 h-4" />
+                                    Change image
+                                </button>
+                            )}
+
                             <textarea
                                 value={newStatusText}
                                 onChange={(e) => setNewStatusText(e.target.value)}
-                                placeholder="What's on your mind?"
-                                rows={4}
+                                placeholder="What's on your mind? (optional with image)"
+                                rows={3}
                                 className="w-full bg-[#111b21] border border-[#2a3942] rounded-xl px-4 py-3 text-white placeholder-[#8696a0] focus:outline-none focus:ring-2 focus:ring-[#00a884] resize-none mb-4"
-                                autoFocus
+                                autoFocus={!selectedImage}
                             />
                             <div className="flex gap-2">
                                 <button
                                     type="button"
-                                    onClick={() => { setShowAddModal(false); setNewStatusText(""); }}
+                                    onClick={() => { setShowAddModal(false); setNewStatusText(""); clearSelectedImage(); }}
                                     className="flex-1 py-2.5 rounded-xl border border-[#2a3942] text-[#00a884] hover:bg-[#2a3942] transition"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={creating || !newStatusText.trim()}
+                                    disabled={creating || (!newStatusText.trim() && !selectedImage)}
                                     className="flex-1 py-2.5 rounded-xl bg-[#00a884] text-white hover:bg-[#06cf9c] disabled:opacity-50 transition shadow-lg flex items-center justify-center gap-2"
                                 >
                                     {creating ? (
