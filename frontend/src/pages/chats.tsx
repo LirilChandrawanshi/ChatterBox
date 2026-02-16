@@ -35,6 +35,7 @@ export default function Chats() {
   const [deleting, setDeleting] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [viewingProfile, setViewingProfile] = useState<string | null>(null);
+  const [contactPics, setContactPics] = useState<Record<string, string>>({});
 
   // Desktop detection - redirect to desktop view only on initial load
   useEffect(() => {
@@ -87,6 +88,26 @@ export default function Chats() {
     }, 5000);
     return () => clearInterval(interval);
   }, [myMobile]);
+
+  // Fetch profile pictures for all conversation participants
+  useEffect(() => {
+    if (conversations.length === 0) return;
+    const mobilesToFetch = conversations
+      .map((conv) => conv.otherParticipantMobile ?? (conv.participant1 === myMobile ? conv.participant2 : conv.participant1))
+      .filter((m) => m && !contactPics[m]);
+
+    // Deduplicate
+    const unique = Array.from(new Set(mobilesToFetch));
+    if (unique.length === 0) return;
+
+    unique.forEach((mobile) => {
+      getProfilePicture(mobile).then((pic) => {
+        if (pic) {
+          setContactPics((prev) => ({ ...prev, [mobile]: pic }));
+        }
+      }).catch(() => { });
+    });
+  }, [conversations]);
 
   const handleNewChat = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -394,10 +415,14 @@ export default function Chats() {
                               setViewingProfile(otherMobile);
                             }
                           }}
-                          className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-lg shadow-md ring-2 ring-white/5 hover:ring-[#00a884] transition cursor-pointer"
+                          className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-lg shadow-md ring-2 ring-white/5 hover:ring-[#00a884] transition cursor-pointer overflow-hidden"
                           style={{ backgroundColor: color }}
                         >
-                          {name.charAt(0).toUpperCase()}
+                          {contactPics[otherMobile] ? (
+                            <img src={contactPics[otherMobile]} alt={name} className="w-full h-full object-cover" />
+                          ) : (
+                            name.charAt(0).toUpperCase()
+                          )}
                         </button>
                         {isOnline && (
                           <span

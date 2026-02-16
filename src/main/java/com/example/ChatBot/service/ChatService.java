@@ -48,11 +48,38 @@ public class ChatService {
     /**
      * Delete messages by id. Only persisted (CHAT/FILE) messages have ids.
      * Ignores non-existent ids.
+     * After deletion, updates the conversation's lastMessagePreview to reflect the
+     * new latest message.
      */
     public void deleteByIds(List<String> ids) {
         if (ids == null || ids.isEmpty())
             return;
+
+        // Find the affected conversation IDs before deleting
+        java.util.Set<String> affectedConversationIds = new java.util.HashSet<>();
+        repository.findAllById(ids).forEach(doc -> {
+            if (doc.getConversationId() != null) {
+                affectedConversationIds.add(doc.getConversationId());
+            }
+        });
+
+        // Delete the messages
         repository.deleteAllById(ids);
+
+        // Update lastMessagePreview for each affected conversation
+        for (String convId : affectedConversationIds) {
+            var pageable = PageRequest.of(0, 1, Sort.by(Sort.Direction.DESC, "timestamp"));
+            List<ChatMessageDocument> remaining = repository.findByConversationIdOrderByTimestampDesc(convId, pageable);
+            if (remaining.isEmpty()) {
+                // No messages left — clear the preview
+                conversationService.updateLastMessage(convId, null);
+            } else {
+                ChatMessageDocument latest = remaining.get(0);
+                String preview = latest.getType() == Entity.MessageType.FILE ? "Photo"
+                        : (latest.getContent() != null ? latest.getContent() : "");
+                conversationService.updateLastMessageWithTimestamp(convId, preview, latest.getTimestamp());
+            }
+        }
     }
 
     /**

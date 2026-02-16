@@ -10,6 +10,7 @@ import {
   sendFileMessage as apiSendFileMessage,
   deleteMessages,
   getConversation,
+  getProfilePicture,
 } from "@/services/api";
 import { getStoredUser } from "../index";
 import { getEmojiList } from "@/utils/emojis";
@@ -50,6 +51,7 @@ export default function ConversationPage() {
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const longPressActiveRef = useRef(false);
   const [viewingProfile, setViewingProfile] = useState(false);
+  const [otherProfilePic, setOtherProfilePic] = useState<string | null>(null);
 
   // Handlers
   const handleLongPress = (msgId: string) => {
@@ -158,6 +160,14 @@ export default function ConversationPage() {
     );
     // Mark messages as read when opening chat (via WebSocket when connected)
   }, [router.isReady, myMobile, convId]);
+
+  // Fetch other user's profile picture
+  useEffect(() => {
+    if (!otherMobile) return;
+    getProfilePicture(otherMobile).then((pic) => {
+      if (pic) setOtherProfilePic(pic);
+    }).catch(() => { });
+  }, [otherMobile]);
 
   // Mark messages as read based on persisted otherLastReadAt
   useEffect(() => {
@@ -383,10 +393,14 @@ export default function ConversationPage() {
               <button
                 type="button"
                 onClick={() => setViewingProfile(true)}
-                className="w-11 h-11 rounded-full flex items-center justify-center text-white font-semibold shrink-0 shadow-md ring-2 ring-white/10 hover:ring-[#00a884] transition cursor-pointer"
+                className="w-11 h-11 rounded-full flex items-center justify-center text-white font-semibold shrink-0 shadow-md ring-2 ring-white/10 hover:ring-[#00a884] transition cursor-pointer overflow-hidden"
                 style={{ backgroundColor: getAvatarColor(otherMobile || "?") }}
               >
-                {(otherName || otherMobile || "?").charAt(0).toUpperCase()}
+                {otherProfilePic ? (
+                  <img src={otherProfilePic} alt={otherName} className="w-full h-full object-cover" />
+                ) : (
+                  (otherName || otherMobile || "?").charAt(0).toUpperCase()
+                )}
               </button>
               <button
                 type="button"

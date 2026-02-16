@@ -56,6 +56,19 @@ public class ConversationService {
     }
 
     /**
+     * Update last message preview with a specific timestamp (used after message
+     * deletion
+     * to set the timestamp to the actual latest remaining message's time).
+     */
+    public void updateLastMessageWithTimestamp(String conversationId, String preview, long timestamp) {
+        conversationRepository.findById(conversationId).ifPresent(conv -> {
+            conv.setLastMessageAt(timestamp);
+            conv.setLastMessagePreview(preview != null && preview.length() > 100 ? preview.substring(0, 100) : preview);
+            conversationRepository.save(conv);
+        });
+    }
+
+    /**
      * Delete a conversation and all its messages.
      * Returns true if deleted, false if not found or not authorized.
      */

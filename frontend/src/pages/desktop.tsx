@@ -73,6 +73,7 @@ export default function DesktopChats() {
     const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null);
     const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
     const [viewingProfile, setViewingProfile] = useState<string | null>(null);
+    const [contactPics, setContactPics] = useState<Record<string, string>>({});
 
     const messageAreaRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -162,6 +163,21 @@ export default function DesktopChats() {
         }, 15000); // Reduced from 5s to 15s - WebSocket handles real-time updates
         return () => clearInterval(interval);
     }, [myMobile, selectedChatId]);
+
+    // Fetch profile pictures for conversation contacts
+    useEffect(() => {
+        if (conversations.length === 0) return;
+        const mobilesToFetch = conversations
+            .map((conv) => conv.otherParticipantMobile ?? (conv.participant1 === myMobile ? conv.participant2 : conv.participant1))
+            .filter((m) => m && !contactPics[m]);
+        const unique = Array.from(new Set(mobilesToFetch));
+        if (unique.length === 0) return;
+        unique.forEach((mobile) => {
+            getProfilePicture(mobile).then((pic) => {
+                if (pic) setContactPics((prev) => ({ ...prev, [mobile]: pic }));
+            }).catch(() => { });
+        });
+    }, [conversations]);
 
     // Load selected chat
     useEffect(() => {
@@ -779,10 +795,14 @@ export default function DesktopChats() {
                                         )}
                                         <div className="relative shrink-0">
                                             <div
-                                                className="w-11 h-11 rounded-full flex items-center justify-center text-white font-semibold"
+                                                className="w-11 h-11 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden"
                                                 style={{ backgroundColor: getAvatarColor(convOtherMobile) }}
                                             >
-                                                {name.charAt(0).toUpperCase()}
+                                                {contactPics[convOtherMobile] ? (
+                                                    <img src={contactPics[convOtherMobile]} alt={name} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    name.charAt(0).toUpperCase()
+                                                )}
                                             </div>
                                             {isOnline && (
                                                 <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[#00a884] border-2 border-[#111827]" />
@@ -840,10 +860,14 @@ export default function DesktopChats() {
                     <button
                         type="button"
                         onClick={() => setViewingProfile(otherMobile)}
-                        className="w-11 h-11 rounded-full flex items-center justify-center text-white font-semibold transition hover:opacity-80 cursor-pointer"
+                        className="w-11 h-11 rounded-full flex items-center justify-center text-white font-semibold transition hover:opacity-80 cursor-pointer overflow-hidden"
                         style={{ backgroundColor: getAvatarColor(otherMobile || "?") }}
                     >
-                        {(otherName || otherMobile || "?").charAt(0).toUpperCase()}
+                        {contactPics[otherMobile] ? (
+                            <img src={contactPics[otherMobile]} alt={otherName} className="w-full h-full object-cover" />
+                        ) : (
+                            (otherName || otherMobile || "?").charAt(0).toUpperCase()
+                        )}
                     </button>
                     <button
                         type="button"
