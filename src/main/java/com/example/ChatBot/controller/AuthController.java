@@ -1,11 +1,15 @@
 package com.example.ChatBot.controller;
 
+import com.example.ChatBot.Dto.auth.AuthResponseDto;
+import com.example.ChatBot.Dto.auth.LoginDto;
+import com.example.ChatBot.Dto.auth.SignupRequestDto;
 import com.example.ChatBot.model.UserDocument;
 import com.example.ChatBot.service.JwtService;
 import com.example.ChatBot.service.UserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.validation.Valid;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -26,20 +30,17 @@ public class AuthController {
      * Body: { "mobile": "9876543210", "displayName": "John", "password": "secret123" }
      */
     @PostMapping("/signup")
-    public ResponseEntity<?> signup(@RequestBody Map<String, String> body) {
-        String mobile = body != null ? body.get("mobile") : null;
-        String displayName = body != null ? body.get("displayName") : null;
-        String password = body != null ? body.get("password") : null;
-        if (mobile == null || mobile.isBlank() || password == null || password.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Mobile and password required"));
-        }
+    public ResponseEntity<?> signup(@Valid @RequestBody SignupRequestDto signupRequestDto) {
+
         try {
-            UserDocument user = userService.signup(mobile, displayName != null ? displayName : mobile, password);
+            UserDocument user = userService.signup(signupRequestDto.getMobile(), signupRequestDto.getDisplayName(), signupRequestDto.getPassword());
+
             String token = jwtService.generate(user.getMobile());
-            Map<String, Object> res = new HashMap<>();
-            res.put("user", user);
-            res.put("token", token);
-            return ResponseEntity.ok(res);
+
+            AuthResponseDto authResponseDto = new AuthResponseDto();
+            authResponseDto.setToken(token);
+            authResponseDto.setUser(user);
+            return ResponseEntity.ok(authResponseDto);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
@@ -50,35 +51,17 @@ public class AuthController {
      * Body: { "mobile": "9876543210", "password": "secret123" }
      */
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody Map<String, String> body) {
-        String mobile = body != null ? body.get("mobile") : null;
-        String password = body != null ? body.get("password") : null;
-        if (mobile == null || mobile.isBlank() || password == null || password.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Mobile and password required"));
-        }
-        UserDocument user = userService.login(mobile, password);
+    public ResponseEntity<?> login(@Valid @RequestBody LoginDto loginDto ) {
+        UserDocument user = userService.login(loginDto.getMobile(), loginDto.getPassword());
         if (user == null) {
             return ResponseEntity.status(401).body(Map.of("error", "Invalid mobile or password"));
         }
         String token = jwtService.generate(user.getMobile());
-        Map<String, Object> res = new HashMap<>();
-        res.put("user", user);
-        res.put("token", token);
-        return ResponseEntity.ok(res);
+        AuthResponseDto authResponseDto = new AuthResponseDto();
+        authResponseDto.setToken(token);
+        authResponseDto.setUser(user);
+        return ResponseEntity.ok(authResponseDto);
     }
 
-    /**
-     * POST /api/auth/register (legacy, no password)
-     * Body: { "mobile": "+1234567890", "displayName": "John" }
-     */
-    @PostMapping("/register")
-    public ResponseEntity<UserDocument> register(@RequestBody Map<String, String> body) {
-        String mobile = body != null ? body.get("mobile") : null;
-        String displayName = body != null ? body.get("displayName") : null;
-        if (mobile == null || mobile.isBlank()) {
-            return ResponseEntity.badRequest().build();
-        }
-        UserDocument user = userService.registerOrGet(mobile, displayName);
-        return ResponseEntity.ok(user);
-    }
+
 }

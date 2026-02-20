@@ -1,4 +1,12 @@
 package com.example.ChatBot.Dto.auth;
 
-public class AuthResponseDto {
+import com.example.ChatBot.model.UserDocument;
+import lombok.Data;
+
+import java.io.Serializable;
+
+@Data
+public class AuthResponseDto implements Serializable {
+    private UserDocument user;
+    private String token;
 }

@@ -3,8 +3,7 @@ package com.example.ChatBot.controller;
 import com.example.ChatBot.model.Entity;
 import com.example.ChatBot.service.ChatService;
 import com.example.ChatBot.service.ConversationService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.handler.annotation.SendTo;
@@ -14,10 +13,10 @@ import org.springframework.stereotype.Controller;
 
 import javax.validation.Valid;
 
+@Slf4j
 @Controller
 public class ChatBotController {
 
-    private static final Logger logger = LoggerFactory.getLogger(ChatBotController.class);
 
     private final ChatService chatService;
     private final ConversationService conversationService;
@@ -33,9 +32,9 @@ public class ChatBotController {
     @MessageMapping("/chat.sendMessage")
     @SendTo("/topic/public")
     public Entity sendMessage(@Payload @Valid Entity chatMessage) {
-        logger.debug("Received message from {}: {}", chatMessage.getSender(), chatMessage.getContent());
+        log.info("Received message from {}: {}", chatMessage.getSender(), chatMessage.getContent());
 
-        // Sanitize content to prevent XSS
+
         if (chatMessage.getContent() != null) {
             chatMessage.setContent(sanitizeInput(chatMessage.getContent()));
         }
@@ -50,7 +49,7 @@ public class ChatBotController {
     @MessageMapping("/chat.addUser")
     @SendTo("/topic/public")
     public Entity addUser(@Payload @Valid Entity chatMessage, SimpMessageHeaderAccessor headerAccessor) {
-        logger.info("User joined: {}", chatMessage.getSender());
+        log.info("User joined: {}", chatMessage.getSender());
 
         // Store username in session
         var sessionAttributes = headerAccessor.getSessionAttributes();
@@ -63,7 +62,7 @@ public class ChatBotController {
 
     @MessageMapping("/chat.typing")
     public void handleTyping(@Payload @Valid Entity chatMessage) {
-        logger.debug("User typing: {} in conversation: {}", chatMessage.getSender(), chatMessage.getConversationId());
+        log.debug("User typing: {} in conversation: {}", chatMessage.getSender(), chatMessage.getConversationId());
 
         // If conversationId is provided, send to the other participant in 1:1 chat
         if (chatMessage.getConversationId() != null) {
@@ -87,7 +86,7 @@ public class ChatBotController {
 
     @MessageMapping("/chat.read")
     public void handleReadReceipt(@Payload @Valid Entity chatMessage) {
-        logger.debug("Read receipt from: {} in conversation: {}", chatMessage.getSender(),
+        log.debug("Read receipt from: {} in conversation: {}", chatMessage.getSender(),
                 chatMessage.getConversationId());
 
         if (chatMessage.getConversationId() != null) {
@@ -112,7 +111,7 @@ public class ChatBotController {
     @MessageMapping("/chat.sendFile")
     @SendTo("/topic/public")
     public Entity sendFile(@Payload @Valid Entity chatMessage) {
-        logger.info("File shared by {}: {}", chatMessage.getSender(), chatMessage.getFileType());
+        log.error("File shared by {}: {}", chatMessage.getSender(), chatMessage.getFileType());
         chatMessage.setTimestamp(System.currentTimeMillis());
         String savedId = chatService.saveIfPersistable(chatMessage);
         if (savedId != null)

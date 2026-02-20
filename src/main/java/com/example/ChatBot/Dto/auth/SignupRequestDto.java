@@ -1,6 +1,5 @@
-package com.example.ChatBot.Dto;
+package com.example.ChatBot.Dto.auth;
 
-import jdk.jfr.DataAmount;
 import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
@@ -8,7 +7,6 @@ import lombok.Setter;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
-import java.io.Serial;
 import java.io.Serializable;
 
 @Data
