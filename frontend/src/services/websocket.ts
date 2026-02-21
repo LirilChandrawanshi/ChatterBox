@@ -23,12 +23,21 @@ export class WebSocketService {
   private mobile = "";
   private messageCallback: ((message: ChatMessage) => void) | null = null;
   private connectionCallback: ((connected: boolean) => void) | null = null;
+  private subscription: { unsubscribe: () => void } | null = null;
 
   connect(
     mobile: string,
     onConnected: () => void,
     onError: (error: unknown) => void
   ) {
+    // Deactivate existing client to prevent duplicate connections/subscriptions
+    if (this.stompClient) {
+      try { this.stompClient.deactivate(); } catch {}
+      this.stompClient = null;
+      this.subscription = null;
+      this.connected = false;
+    }
+
     this.mobile = mobile.replace(/[^0-9]/g, "");
     const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:8080/ws";
     const urlWithMobile = `${wsUrl}?mobile=${encodeURIComponent(this.mobile)}`;
@@ -56,10 +65,14 @@ export class WebSocketService {
     this.stompClient.onConnect = () => {
       this.connected = true;
       this.connectionCallback?.(true);
-      this.stompClient?.subscribe("/user/queue/messages", (message: IMessage) => {
+      // Unsubscribe old subscription before re-subscribing (prevents duplicates on reconnect)
+      if (this.subscription) {
+        try { this.subscription.unsubscribe(); } catch {}
+      }
+      this.subscription = this.stompClient?.subscribe("/user/queue/messages", (message: IMessage) => {
         const chatMessage = JSON.parse(message.body) as ChatMessage;
         this.messageCallback?.(chatMessage);
-      });
+      }) ?? null;
       onConnected();
     };
 

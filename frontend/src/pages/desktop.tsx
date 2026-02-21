@@ -82,6 +82,18 @@ export default function DesktopChats() {
     const isTypingSentRef = useRef(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Refs for WebSocket handler (avoids stale closures and excessive effect re-runs)
+    const messagesRef = useRef<ChatMessage[]>([]);
+    const connectedRef = useRef(false);
+    const groupsRef = useRef<Group[]>([]);
+    const selectedChatIdRef = useRef<string | null>(null);
+
+    // Keep refs in sync with state
+    useEffect(() => { messagesRef.current = messages; }, [messages]);
+    useEffect(() => { connectedRef.current = connected; }, [connected]);
+    useEffect(() => { groupsRef.current = groups; }, [groups]);
+    useEffect(() => { selectedChatIdRef.current = selectedChatId; }, [selectedChatId]);
+
     // Settings state
     const [showSettings, setShowSettings] = useState(false);
     const [isEditingName, setIsEditingName] = useState(false);
@@ -232,35 +244,35 @@ export default function DesktopChats() {
     }, [selectedChatId, myMobile]);
 
     // WebSocket connection
+    // WebSocket connection — runs only once per mount (myMobile change)
     useEffect(() => {
-        if (!myMobile) return; // Removed selectedChatId dependency to allow background listening
+        if (!myMobile) return;
 
-        // Re-connect if needed (simplified logic to avoid multiple connections)
-        if (!connected && !connecting) {
-            setConnecting(true);
-            wsService.connect(
-                myMobile,
-                () => {
-                    setConnected(true);
-                    setConnecting(false);
-                    setConnectionError("");
-                    if (selectedChatId) wsService.sendReadReceipt(selectedChatId);
-                },
-                () => {
-                    setConnecting(false);
-                    setConnectionError("Could not connect");
-                }
-            );
-        }
+        setConnecting(true);
+        wsService.connect(
+            myMobile,
+            () => {
+                setConnected(true);
+                setConnecting(false);
+                setConnectionError("");
+                if (selectedChatIdRef.current) wsService.sendReadReceipt(selectedChatIdRef.current);
+            },
+            () => {
+                setConnecting(false);
+                setConnectionError("Could not connect");
+            }
+        );
 
         const handler = (message: ChatMessage) => {
+            const currentChatId = selectedChatIdRef.current;
+
             // 1. Play sound ONLY for new messages (not typing)
             if (message.sender !== myMobile && (message.type === "CHAT" || message.type === "FILE")) {
                 playNotificationSound();
             }
 
             // 2. Handle active chat messages
-            if (message.conversationId === selectedChatId) {
+            if (message.conversationId === currentChatId) {
                 if (message.type === "TYPING" && message.sender !== myMobile) {
                     setIsTyping(true);
                     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -270,7 +282,7 @@ export default function DesktopChats() {
                 if (message.type === "READ" && message.sender !== myMobile) {
                     setReadMessageIds((prev) => {
                         const next = new Set(prev);
-                        messages.forEach((m) => {
+                        messagesRef.current.forEach((m) => {
                             if (m.sender === myMobile && m.id) next.add(m.id);
                         });
                         return next;
@@ -279,30 +291,29 @@ export default function DesktopChats() {
                 }
                 if (message.type === "CHAT" || message.type === "FILE") {
                     setMessages((prev) => [...prev, message]);
-                    if (message.sender !== myMobile && connected) {
-                        wsService.sendReadReceipt(selectedChatId);
+                    if (message.sender !== myMobile && connectedRef.current) {
+                        wsService.sendReadReceipt(currentChatId);
                     }
                 }
             }
 
             // 3. Update Lists (Conversations & Groups) - Reorder & Unread count
-            const isGroup = groups.some(g => g.id === message.conversationId);
-
             if (message.type === "CHAT" || message.type === "FILE") {
+                const isGroup = groupsRef.current.some(g => g.id === message.conversationId);
                 const preview = message.type === 'FILE' ? (message.fileType?.startsWith('image/') ? '📷 Photo' : '📎 File') : (message.content || "");
 
                 if (isGroup) {
                     setGroups(prev => {
                         const idx = prev.findIndex(g => g.id === message.conversationId);
-                        if (idx === -1) { getMyGroups(myMobile).then(setGroups); return prev; } // Refresh if new
+                        if (idx === -1) { getMyGroups(myMobile).then(setGroups); return prev; }
 
                         const updated = [...prev];
                         const item = { ...updated[idx] };
                         item.lastMessageAt = message.timestamp || Date.now();
                         item.lastMessagePreview = preview;
-                        item.lastMessageSenderName = message.sender === myMobile ? "You" : (item.lastMessageSenderName || message.sender); // Ideally get name
+                        item.lastMessageSenderName = message.sender === myMobile ? "You" : (item.lastMessageSenderName || message.sender);
 
-                        if (message.conversationId !== selectedChatId) {
+                        if (message.conversationId !== selectedChatIdRef.current) {
                             item.unreadCount = (item.unreadCount || 0) + 1;
                         }
 
@@ -313,14 +324,14 @@ export default function DesktopChats() {
                 } else {
                     setConversations(prev => {
                         const idx = prev.findIndex(c => c.id === message.conversationId);
-                        if (idx === -1) { getConversations(myMobile).then(setConversations); return prev; } // Refresh if new
+                        if (idx === -1) { getConversations(myMobile).then(setConversations); return prev; }
 
                         const updated = [...prev];
                         const item = { ...updated[idx] };
                         item.lastMessageAt = message.timestamp || Date.now();
                         item.lastMessagePreview = preview;
 
-                        if (message.conversationId !== selectedChatId) {
+                        if (message.conversationId !== selectedChatIdRef.current) {
                             item.unreadCount = (item.unreadCount || 0) + 1;
                         }
 
@@ -333,16 +344,11 @@ export default function DesktopChats() {
         };
 
         wsService.onMessage(handler);
-        // Do not disconnect on unmount of effect if we want to persist connection across chat changes
-        // But since we selectedChatId is in dependency of other effect, we need to manage carefully.
-        // Actually, we should only connect once. 
-        // For this refactor, I kept it simple but removed disconnect() from cleanup to avoid reconnect loop.
-        // But correctly, we should have a separate effect for connection vs handler.
 
         return () => {
-            // wsService.disconnect(); // Don't disconnect to keep listening
+            wsService.disconnect();
         };
-    }, [myMobile, selectedChatId, messages, connected, groups]); // Added groups to dep for check
+    }, [myMobile]); // Only reconnect when user identity changes
 
     // Scroll to bottom
     useEffect(() => {
