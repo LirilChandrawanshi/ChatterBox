@@ -141,6 +141,13 @@ export async function getOnlineMobiles(): Promise<string[]> {
   return res.json();
 }
 
+/** Get total user count (public, no auth). */
+export async function getUserCount(): Promise<{ count: number }> {
+  const res = await fetch(`${getBase()}/api/users/count`);
+  if (!res.ok) throw new Error("Failed to fetch user count");
+  return res.json();
+}
+
 export async function getConversations(
   mobile: string,
 ): Promise<ConversationSummary[]> {

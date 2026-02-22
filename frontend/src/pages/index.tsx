@@ -1,8 +1,8 @@
-import { useState, FormEvent } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
 import { MessageCircle } from "lucide-react";
-import { signup, login, setToken } from "@/services/api";
+import { signup, login, setToken, getUserCount } from "@/services/api";
 
 const STORAGE_KEY = "chatterbox_user";
 
@@ -34,6 +34,13 @@ export default function Home() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [userCount, setUserCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    getUserCount()
+      .then(({ count }) => setUserCount(count))
+      .catch(() => setUserCount(null));
+  }, []);
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
@@ -204,6 +211,11 @@ export default function Home() {
             </div>
           </div>
 
+          {userCount !== null && (
+            <p className="text-[#8696a0] text-sm text-center mt-4">
+              Join {userCount.toLocaleString()} users on OpenTalk
+            </p>
+          )}
           <p className="text-[#8696a0] text-xs text-center mt-4">
             {tab === "login"
               ? "Don't have an account? Sign up with your mobile number."

@@ -57,6 +57,15 @@ public class UserController {
     }
 
     /**
+     * GET /api/users/count
+     * Returns total number of users in the database. Public, no auth required.
+     */
+    @GetMapping("/count")
+    public ResponseEntity<UserCountResponse> count() {
+        return ResponseEntity.ok(new UserCountResponse(userService.getTotalUserCount()));
+    }
+
+    /**
      * PUT /api/users/profile
      * Update user's display name.
      */

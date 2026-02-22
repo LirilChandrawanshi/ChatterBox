@@ -72,6 +72,13 @@ public class UserService {
     }
 
     /**
+     * Returns the total number of users in the database.
+     */
+    public long getTotalUserCount() {
+        return userRepository.count();
+    }
+
+    /**
      * Batch lookup users by mobile numbers - single DB query for all.
      * Returns a map of mobile -> UserDocument for O(1) lookups.
      */
