@@ -13,6 +13,7 @@ import {
 } from "@/services/api";
 import { getStoredUser } from "./index";
 import BottomNav from "@/components/BottomNav";
+import { formatUserIdentifier, isGoogleUser } from "@/utils/userDisplay";
 
 export default function Chats() {
   const router = useRouter();
@@ -113,9 +114,11 @@ export default function Chats() {
 
   const handleNewChat = async (e: React.FormEvent) => {
     e.preventDefault();
-    const other = newContactMobile.trim().replace(/[^0-9+]/g, "");
-    if (other.length < 5) {
-      setNewChatError("Enter a valid mobile number");
+    const raw = newContactMobile.trim();
+    // Support both regular mobile numbers and google_ OAuth identifiers
+    const other = raw.startsWith("google_") ? raw : raw.replace(/[^0-9+]/g, "");
+    if (!other || other.length < 5) {
+      setNewChatError("Enter a valid mobile number or username");
       return;
     }
     if (other === myMobile) {
@@ -230,7 +233,7 @@ export default function Chats() {
             </div>
             <div>
               <h1 className="text-lg font-semibold text-white">{displayName}</h1>
-              <p className="text-xs text-[#8696a0]">{myMobile}</p>
+              <p className="text-xs text-[#8696a0]">{isGoogleUser(myMobile) ? formatUserIdentifier(myMobile) : myMobile}</p>
             </div>
           </div>
           <button
@@ -293,14 +296,14 @@ export default function Chats() {
             <div className="bg-gradient-to-b from-[#1f2c34] to-[#1a2332] rounded-2xl w-full max-w-sm p-6 shadow-2xl border border-[#2a3942]/50">
               <h2 className="text-xl font-semibold text-white mb-2">New chat</h2>
               <p className="text-[#8696a0] text-sm mb-4">
-                Enter the mobile number of the person you want to chat with.
+                Enter the mobile number or Google email of the person you want to chat with.
               </p>
               <form onSubmit={handleNewChat}>
                 <input
-                  type="tel"
+                  type="text"
                   value={newContactMobile}
                   onChange={(e) => setNewContactMobile(e.target.value)}
-                  placeholder="Mobile number"
+                  placeholder="Mobile number or google_email@gmail.com"
                   className="w-full bg-[#2a3942] border border-[#2a3942] rounded-xl px-4 py-3 text-white placeholder-[#8696a0] focus:outline-none focus:ring-2 focus:ring-[#00a884]/50 focus:border-[#00a884] mb-3"
                   autoFocus
                 />

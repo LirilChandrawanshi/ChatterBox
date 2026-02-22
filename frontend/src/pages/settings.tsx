@@ -5,6 +5,7 @@ import { Settings as SettingsIcon, Camera, Check, LogOut, User, Pencil } from "l
 import BottomNav from "@/components/BottomNav";
 import { getStoredUser, setStoredUser } from "./index";
 import { clearToken, updateDisplayName, updateProfilePicture, getProfilePicture, updateBio, getBio } from "@/services/api";
+import { formatUserIdentifier, isGoogleUser } from "@/utils/userDisplay";
 
 export default function Settings() {
     const router = useRouter();
@@ -242,7 +243,7 @@ export default function Settings() {
                             </div>
 
                             {/* Mobile Number */}
-                            <p className="text-[#8696a0] text-sm mt-2">{myMobile}</p>
+                            <p className="text-[#8696a0] text-sm mt-2">{isGoogleUser(myMobile) ? formatUserIdentifier(myMobile) : myMobile}</p>
 
                             {/* Bio Section */}
                             <div className="w-full max-w-xs mt-4">
@@ -298,7 +299,7 @@ export default function Settings() {
                             {/* Account Info */}
                             <div className="px-4 py-4 border-b border-[#2a3942]/50">
                                 <h3 className="text-[#8696a0] text-xs uppercase tracking-wider mb-1">Account</h3>
-                                <p className="text-white text-sm">Mobile Number: {myMobile}</p>
+                                <p className="text-white text-sm">{isGoogleUser(myMobile) ? `Email: ${formatUserIdentifier(myMobile)}` : `Mobile Number: ${myMobile}`}</p>
                             </div>
 
                             {/* Logout Button */}

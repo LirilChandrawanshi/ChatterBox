@@ -16,7 +16,7 @@ import {
     updateDisplayName,
     updateProfilePicture,
     clearToken,
-    User as UserProfile, ConversationSummary, updateBio, Group, getMyGroups
+    User as UserProfile, ConversationSummary, updateBio, getBio, Group, getMyGroups
 } from "@/services/api";
 import { getStoredUser, setStoredUser } from "./index";
 import { wsService, type ChatMessage } from "@/services/websocket";
@@ -26,6 +26,7 @@ import Loader from "@/components/Loader";
 import BottomNav from "@/components/BottomNav";
 import ProfileModal from "@/components/ProfileModal";
 import CreateGroupModal from "@/components/CreateGroupModal";
+import { formatUserIdentifier, isGoogleUser } from "@/utils/userDisplay";
 
 const EMOJI_LIST = getEmojiList();
 
@@ -104,6 +105,10 @@ export default function DesktopChats() {
     const [isSavingName, setIsSavingName] = useState(false);
     const [isUploadingPicture, setIsUploadingPicture] = useState(false);
     const [successMessage, setSuccessMessage] = useState("");
+    const [bio, setBio] = useState("");
+    const [isEditingBio, setIsEditingBio] = useState(false);
+    const [isSavingBio, setIsSavingBio] = useState(false);
+    const settingsPicInputRef = useRef<HTMLInputElement>(null);
 
     // Load conversations and groups on mount
     useEffect(() => {
@@ -133,6 +138,9 @@ export default function DesktopChats() {
         // Load profile picture separately (non-blocking)
         getProfilePicture(myMobile).then((pic) => {
             if (pic) setProfilePicture(pic);
+        }).catch(() => { });
+        getBio(myMobile).then((b) => {
+            if (b) setBio(b);
         }).catch(() => { });
         const t = setInterval(() => getOnlineMobiles().then((list) => setOnlineMobiles(new Set(list))), 10000);
         return () => clearInterval(t);
@@ -390,9 +398,10 @@ export default function DesktopChats() {
 
     const handleNewChat = async (e: FormEvent) => {
         e.preventDefault();
-        const contactMobile = newContactMobile.trim().replace(/[^0-9+]/g, "");
+        const raw = newContactMobile.trim();
+        const contactMobile = raw.startsWith("google_") ? raw : raw.replace(/[^0-9+]/g, "");
         if (!contactMobile || contactMobile.length < 5) {
-            setNewChatError("Enter a valid mobile number");
+            setNewChatError("Enter a valid mobile number or username");
             return;
         }
         if (contactMobile === myMobile) {
@@ -587,6 +596,40 @@ export default function DesktopChats() {
         router.push("/");
     };
 
+    const handleSaveBio = async () => {
+        setIsSavingBio(true);
+        try {
+            await updateBio(myMobile, bio.trim());
+            showSuccess("Bio updated!");
+        } catch {
+            showSuccess("Bio updated locally!");
+        } finally {
+            setIsSavingBio(false);
+            setIsEditingBio(false);
+        }
+    };
+
+    const handleSettingsPictureChange = async (e: ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith("image/")) return;
+        if (file.size > 5 * 1024 * 1024) return;
+        setIsUploadingPicture(true);
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+            const base64 = reader.result as string;
+            setProfilePicture(base64);
+            try {
+                await updateProfilePicture(myMobile, base64);
+                showSuccess("Picture updated!");
+            } catch {
+                showSuccess("Picture updated locally!");
+            }
+            setIsUploadingPicture(false);
+        };
+        reader.readAsDataURL(file);
+    };
+
     // Message selection handlers
     const toggleMessageSelection = (msgId: string) => {
         if (!messageSelectionMode) return;
@@ -664,7 +707,7 @@ export default function DesktopChats() {
                         </div>
                         <div className="text-left">
                             <p className="text-white font-medium text-sm">{displayName}</p>
-                            <p className="text-[#8696a0] text-xs">{myMobile}</p>
+                            <p className="text-[#8696a0] text-xs">{isGoogleUser(myMobile) ? formatUserIdentifier(myMobile) : myMobile}</p>
                         </div>
                     </button>
                     <div className="flex items-center gap-1">
@@ -1118,111 +1161,185 @@ export default function DesktopChats() {
                 </div>
             )}
 
-            {/* Settings Modal */}
+            {/* Settings Panel — WhatsApp Web style, slides over the sidebar */}
             {showSettings && (
-                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 animate-fade-in">
-                    <div className="bg-gradient-to-b from-[#1f2c34] to-[#1a2332] rounded-2xl w-full max-w-sm p-6 shadow-2xl border border-white/10">
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-xl font-semibold text-white">Settings</h2>
+                <div className="fixed inset-0 z-50 flex">
+                    {/* Backdrop */}
+                    <div className="absolute inset-0 bg-black/40" onClick={() => setShowSettings(false)} />
+
+                    {/* Panel — positioned exactly over the sidebar (icon nav + sidebar width) */}
+                    <div
+                        className="relative z-10 h-full flex flex-col bg-[#111827] border-r border-white/10 shadow-2xl"
+                        style={{ marginLeft: 64, width: 360 }}
+                    >
+                        {/* Header */}
+                        <div className="bg-[#1f2c34] px-6 pt-14 pb-4 flex items-center gap-4">
                             <button
                                 type="button"
                                 onClick={() => setShowSettings(false)}
-                                className="p-2 rounded-full hover:bg-white/10 transition"
+                                className="p-2 -ml-2 rounded-full hover:bg-white/10 transition"
                             >
-                                <X className="w-5 h-5 text-[#8696a0]" />
+                                <ArrowLeft className="w-5 h-5 text-white" />
                             </button>
+                            <h2 className="text-xl font-semibold text-white">Settings</h2>
                         </div>
 
                         {/* Success Toast */}
                         {successMessage && (
-                            <div className="mb-4 bg-[#00a884] text-white px-4 py-2 rounded-xl flex items-center gap-2">
+                            <div className="mx-4 mt-3 bg-[#00a884] text-white px-4 py-2 rounded-xl flex items-center gap-2 animate-fade-in">
                                 <Check className="w-4 h-4" />
                                 <span className="text-sm">{successMessage}</span>
                             </div>
                         )}
 
-                        {/* Profile Picture */}
-                        <div className="flex flex-col items-center mb-6">
-                            <div className="relative mb-4">
-                                <div
-                                    className={`w-24 h-24 rounded-full overflow-hidden bg-gradient-to-br from-[#00a884] to-[#008f72] flex items-center justify-center shadow-xl ring-4 ring-[#1f2c34] ${isUploadingPicture ? 'animate-pulse' : ''}`}
-                                >
-                                    {profilePicture ? (
-                                        <img src={profilePicture} alt="Profile" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <User className="w-12 h-12 text-white/80" />
-                                    )}
+                        {/* Scrollable content */}
+                        <div className="flex-1 overflow-y-auto">
+                            {/* Profile Section */}
+                            <div className="flex flex-col items-center py-8 px-6">
+                                {/* Profile Picture */}
+                                <div className="relative mb-4 group">
+                                    <div
+                                        className={`w-[200px] h-[200px] rounded-full overflow-hidden bg-gradient-to-br from-[#00a884] to-[#008f72] flex items-center justify-center shadow-2xl ring-4 ring-[#1f2c34] cursor-pointer ${isUploadingPicture ? 'animate-pulse' : ''}`}
+                                        onClick={() => settingsPicInputRef.current?.click()}
+                                    >
+                                        {profilePicture ? (
+                                            <img src={profilePicture} alt="Profile" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <User className="w-24 h-24 text-white/60" />
+                                        )}
+                                        {/* Camera overlay on hover */}
+                                        <div className="absolute inset-0 rounded-full bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Camera className="w-8 h-8 text-white mb-1" />
+                                            <span className="text-white text-xs font-medium uppercase tracking-wider">
+                                                {isUploadingPicture ? 'Uploading...' : 'Change Photo'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <input
+                                        ref={settingsPicInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleSettingsPictureChange}
+                                        className="hidden"
+                                    />
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={() => fileInputRef.current?.click()}
-                                    disabled={isUploadingPicture}
-                                    className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-[#00a884] hover:bg-[#06cf9c] text-white flex items-center justify-center shadow-lg transition disabled:opacity-50"
-                                >
-                                    <Camera className="w-4 h-4" />
-                                </button>
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handlePictureChange}
-                                    className="hidden"
-                                />
                             </div>
 
-                            {/* Display Name */}
-                            {isEditingName ? (
-                                <div className="flex items-center gap-2 w-full max-w-xs">
-                                    <input
-                                        type="text"
-                                        value={editableName}
-                                        onChange={(e) => setEditableName(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === "Enter") handleSaveName();
-                                            if (e.key === "Escape") setIsEditingName(false);
-                                        }}
-                                        className="flex-1 bg-[#2a3942] border border-[#00a884] rounded-xl px-4 py-2 text-white text-center focus:outline-none"
-                                        maxLength={50}
-                                        autoFocus
-                                    />
+                            {/* Name Section */}
+                            <div className="px-6 pb-4">
+                                <p className="text-[#00a884] text-sm font-medium mb-2">Your name</p>
+                                {isEditingName ? (
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="text"
+                                            value={editableName}
+                                            onChange={(e) => setEditableName(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter") handleSaveName();
+                                                if (e.key === "Escape") { setIsEditingName(false); setEditableName(displayName); }
+                                            }}
+                                            className="flex-1 bg-transparent border-b-2 border-[#00a884] px-1 py-2 text-white text-base focus:outline-none"
+                                            maxLength={50}
+                                            autoFocus
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleSaveName}
+                                            disabled={isSavingName}
+                                            className="p-2 rounded-full text-[#00a884] hover:bg-white/10 disabled:opacity-50 transition"
+                                        >
+                                            {isSavingName ? (
+                                                <span className="w-5 h-5 border-2 border-[#00a884] border-t-transparent rounded-full animate-spin block" />
+                                            ) : (
+                                                <Check className="w-5 h-5" />
+                                            )}
+                                        </button>
+                                    </div>
+                                ) : (
                                     <button
                                         type="button"
-                                        onClick={handleSaveName}
-                                        disabled={isSavingName}
-                                        className="p-2 rounded-full bg-[#00a884] hover:bg-[#06cf9c] text-white disabled:opacity-50"
+                                        onClick={() => { setEditableName(displayName); setIsEditingName(true); }}
+                                        className="w-full flex items-center justify-between py-2 group"
                                     >
-                                        {isSavingName ? (
-                                            <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin block" />
-                                        ) : (
-                                            <Check className="w-4 h-4" />
-                                        )}
+                                        <span className="text-white text-base">{displayName}</span>
+                                        <Pencil className="w-4 h-4 text-[#8696a0] group-hover:text-[#00a884] transition" />
                                     </button>
-                                </div>
-                            ) : (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setEditableName(displayName);
-                                        setIsEditingName(true);
-                                    }}
-                                    className="flex items-center gap-2 group"
-                                >
-                                    <span className="text-lg font-semibold text-white">{displayName}</span>
-                                    <Pencil className="w-4 h-4 text-[#8696a0] group-hover:text-[#00a884] transition" />
-                                </button>
-                            )}
-                            <p className="text-[#8696a0] text-sm mt-1">{myMobile}</p>
-                        </div>
+                                )}
+                                <p className="text-[#8696a0] text-xs mt-2">This is not your username or pin. This name will be visible to your contacts.</p>
+                            </div>
 
-                        {/* Logout Button */}
-                        <button
-                            type="button"
-                            onClick={handleLogout}
-                            className="w-full px-4 py-3 flex items-center justify-center gap-3 text-red-400 bg-red-500/10 hover:bg-red-500/20 rounded-xl transition"
-                        >
-                            <LogOut className="w-5 h-5" />
-                            <span className="font-medium">Log out</span>
-                        </button>
+                            <div className="h-px bg-white/5 mx-0" />
+
+                            {/* About / Bio Section */}
+                            <div className="px-6 py-4">
+                                <p className="text-[#00a884] text-sm font-medium mb-2">About</p>
+                                {isEditingBio ? (
+                                    <div className="flex flex-col gap-2">
+                                        <textarea
+                                            value={bio}
+                                            onChange={(e) => setBio(e.target.value)}
+                                            onKeyDown={(e) => { if (e.key === "Escape") setIsEditingBio(false); }}
+                                            placeholder="Write something about yourself..."
+                                            maxLength={150}
+                                            rows={3}
+                                            className="w-full bg-transparent border-b-2 border-[#00a884] px-1 py-2 text-white text-sm focus:outline-none resize-none"
+                                            autoFocus
+                                        />
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs text-[#8696a0]">{bio.length}/150</span>
+                                            <button
+                                                type="button"
+                                                onClick={handleSaveBio}
+                                                disabled={isSavingBio}
+                                                className="px-4 py-1.5 rounded-full bg-[#00a884] hover:bg-[#06cf9c] text-white text-sm font-medium transition disabled:opacity-50 flex items-center gap-2"
+                                            >
+                                                {isSavingBio ? (
+                                                    <>
+                                                        <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                        <span>Saving...</span>
+                                                    </>
+                                                ) : "Save"}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsEditingBio(true)}
+                                        className="w-full flex items-center justify-between py-2 group"
+                                    >
+                                        <span className="text-white text-sm">{bio || <span className="text-[#8696a0] italic">Add a bio...</span>}</span>
+                                        <Pencil className="w-4 h-4 text-[#8696a0] group-hover:text-[#00a884] transition" />
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="h-2 bg-black/20" />
+
+                            {/* Account Info */}
+                            <div className="px-6 py-4">
+                                <p className="text-[#00a884] text-sm font-medium mb-2">{isGoogleUser(myMobile) ? 'Email' : 'Phone'}</p>
+                                <p className="text-white text-base">{isGoogleUser(myMobile) ? formatUserIdentifier(myMobile) : myMobile}</p>
+                            </div>
+
+                            <div className="h-2 bg-black/20" />
+
+                            {/* Logout */}
+                            <button
+                                type="button"
+                                onClick={handleLogout}
+                                className="w-full px-6 py-4 flex items-center gap-4 text-red-400 hover:bg-white/5 transition"
+                            >
+                                <LogOut className="w-5 h-5" />
+                                <span className="font-medium">Log out</span>
+                            </button>
+
+                            {/* App info */}
+                            <div className="py-6 text-center">
+                                <p className="text-[#8696a0] text-xs">ChatterBox v1.0.0</p>
+                                <p className="text-[#8696a0]/50 text-xs mt-1">Made with ❤️</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

@@ -32,13 +32,14 @@ export class WebSocketService {
   ) {
     // Deactivate existing client to prevent duplicate connections/subscriptions
     if (this.stompClient) {
-      try { this.stompClient.deactivate(); } catch {}
+      try { this.stompClient.deactivate(); } catch { }
       this.stompClient = null;
       this.subscription = null;
       this.connected = false;
     }
 
-    this.mobile = mobile.replace(/[^0-9]/g, "");
+    // Preserve google_ OAuth identifiers; only strip non-numeric for regular mobiles
+    this.mobile = mobile.startsWith("google_") ? mobile : mobile.replace(/[^0-9]/g, "");
     const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:8080/ws";
     const urlWithMobile = `${wsUrl}?mobile=${encodeURIComponent(this.mobile)}`;
 
@@ -67,7 +68,7 @@ export class WebSocketService {
       this.connectionCallback?.(true);
       // Unsubscribe old subscription before re-subscribing (prevents duplicates on reconnect)
       if (this.subscription) {
-        try { this.subscription.unsubscribe(); } catch {}
+        try { this.subscription.unsubscribe(); } catch { }
       }
       this.subscription = this.stompClient?.subscribe("/user/queue/messages", (message: IMessage) => {
         const chatMessage = JSON.parse(message.body) as ChatMessage;
