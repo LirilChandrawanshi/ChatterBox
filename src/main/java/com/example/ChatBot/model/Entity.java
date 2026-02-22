@@ -4,12 +4,19 @@ import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Size;
 
+/**
+ * Legacy WebSocket message payload. Kept for backward compatibility
+ * during migration. New code should prefer the DTOs in
+ * {@code com.example.ChatBot.dto.chat} package.
+ *
+ * @deprecated Use specific request/response DTOs instead.
+ * @see com.example.ChatBot.dto.chat.ChatMessageRequest
+ * @see com.example.ChatBot.dto.chat.ChatMessageResponse
+ */
+@Deprecated
 public class Entity {
 
-    /** Set for persisted messages (CHAT/FILE); null for ephemeral messages. */
     private String id;
-
-    /** Conversation id for 1:1 chats. */
     private String conversationId;
 
     @NotNull(message = "Message type is required")
@@ -30,20 +37,11 @@ public class Entity {
 
     private long timestamp;
 
-    /** For reply-to-message feature */
     private String replyToId;
     private String replyToContent;
     private String replyToSender;
 
-    public enum MessageType {
-        CHAT,
-        JOIN,
-        LEAVE,
-        TYPING,
-        FILE,
-        READ,
-        DELIVERED
-    }
+    // --- Getters & Setters ---
 
     public MessageType getType() {
         return type;

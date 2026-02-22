@@ -1,7 +1,8 @@
 package com.example.ChatBot.service;
 
+import com.example.ChatBot.dto.chat.ChatMessageResponse;
 import com.example.ChatBot.model.ChatMessageDocument;
-import com.example.ChatBot.model.Entity;
+import com.example.ChatBot.model.MessageType;
 import com.example.ChatBot.repository.ChatMessageRepository;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -26,20 +27,22 @@ public class ChatService {
 
     /**
      * Persist a chat message if it's a CHAT or FILE type (with conversationId).
-     * 
+     *
      * @return the saved document's id, or null if not persisted
      */
-    public String saveIfPersistable(Entity message) {
+    public String saveIfPersistable(ChatMessageResponse message) {
         if (message == null)
             return null;
-        if (message.getType() != Entity.MessageType.CHAT && message.getType() != Entity.MessageType.FILE) {
+        if (message.getType() != MessageType.CHAT && message.getType() != MessageType.FILE) {
             return null;
         }
         if (message.getConversationId() == null)
             return null;
-        ChatMessageDocument doc = ChatMessageDocument.fromEntity(message);
+
+        ChatMessageDocument doc = ChatMessageDocument.fromResponse(message);
         ChatMessageDocument saved = repository.save(doc);
-        String preview = message.getType() == Entity.MessageType.FILE ? "Photo"
+
+        String preview = message.getType() == MessageType.FILE ? "Photo"
                 : (message.getContent() != null ? message.getContent() : "");
         conversationService.updateLastMessage(message.getConversationId(), preview);
         return saved.getId();
@@ -71,11 +74,10 @@ public class ChatService {
             var pageable = PageRequest.of(0, 1, Sort.by(Sort.Direction.DESC, "timestamp"));
             List<ChatMessageDocument> remaining = repository.findByConversationIdOrderByTimestampDesc(convId, pageable);
             if (remaining.isEmpty()) {
-                // No messages left — clear the preview
                 conversationService.updateLastMessage(convId, null);
             } else {
                 ChatMessageDocument latest = remaining.get(0);
-                String preview = latest.getType() == Entity.MessageType.FILE ? "Photo"
+                String preview = latest.getType() == MessageType.FILE ? "Photo"
                         : (latest.getContent() != null ? latest.getContent() : "");
                 conversationService.updateLastMessageWithTimestamp(convId, preview, latest.getTimestamp());
             }
@@ -85,33 +87,37 @@ public class ChatService {
     /**
      * Get recent message history for a conversation (oldest first for display).
      */
-    public List<Entity> getMessagesByConversationId(String conversationId, int limit) {
+    public List<ChatMessageResponse> getMessagesByConversationId(String conversationId, int limit) {
         if (conversationId == null)
             return List.of();
         if (limit <= 0)
             limit = DEFAULT_HISTORY_LIMIT;
+
         var pageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "timestamp"));
         List<ChatMessageDocument> docs = repository.findByConversationIdOrderByTimestampDesc(conversationId, pageable);
-        List<Entity> entities = docs.stream()
-                .map(ChatMessageDocument::toEntity)
+
+        List<ChatMessageResponse> messages = docs.stream()
+                .map(ChatMessageDocument::toResponse)
                 .collect(Collectors.toList());
-        Collections.reverse(entities);
-        return entities;
+        Collections.reverse(messages);
+        return messages;
     }
 
     /**
      * Legacy: get recent messages without conversation (old public room).
      */
-    public List<Entity> getRecentMessages(int limit) {
+    public List<ChatMessageResponse> getRecentMessages(int limit) {
         if (limit <= 0)
             limit = DEFAULT_HISTORY_LIMIT;
+
         var pageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "timestamp"));
         List<ChatMessageDocument> docs = repository.findByOrderByTimestampDesc(pageable);
-        List<Entity> entities = docs.stream()
-                .map(ChatMessageDocument::toEntity)
+
+        List<ChatMessageResponse> messages = docs.stream()
+                .map(ChatMessageDocument::toResponse)
                 .collect(Collectors.toList());
-        Collections.reverse(entities);
-        return entities;
+        Collections.reverse(messages);
+        return messages;
     }
 
     /**

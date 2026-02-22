@@ -1,8 +1,15 @@
 package com.example.ChatBot.controller;
 
-import com.example.ChatBot.model.Entity;
+import com.example.ChatBot.dto.chat.ChatMessageRequest;
+import com.example.ChatBot.dto.chat.ChatMessageResponse;
+import com.example.ChatBot.dto.chat.FileMessageRequest;
+import com.example.ChatBot.dto.chat.ReadReceiptRequest;
+import com.example.ChatBot.dto.chat.TypingRequest;
+import com.example.ChatBot.dto.chat.UserJoinRequest;
+import com.example.ChatBot.model.MessageType;
 import com.example.ChatBot.service.ChatService;
 import com.example.ChatBot.service.ConversationService;
+import com.example.ChatBot.util.InputSanitizer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -17,7 +24,6 @@ import javax.validation.Valid;
 @Controller
 public class ChatBotController {
 
-
     private final ChatService chatService;
     private final ConversationService conversationService;
     private final SimpMessagingTemplate messagingTemplate;
@@ -31,101 +37,113 @@ public class ChatBotController {
 
     @MessageMapping("/chat.sendMessage")
     @SendTo("/topic/public")
-    public Entity sendMessage(@Payload @Valid Entity chatMessage) {
-        log.info("Received message from {}: {}", chatMessage.getSender(), chatMessage.getContent());
+    public ChatMessageResponse sendMessage(@Payload @Valid ChatMessageRequest request) {
+        log.info("Received message from {}: {}", request.getSender(), request.getContent());
 
+        ChatMessageResponse response = ChatMessageResponse.builder()
+                .type(request.getType())
+                .content(InputSanitizer.sanitize(request.getContent()))
+                .sender(request.getSender())
+                .conversationId(request.getConversationId())
+                .timestamp(System.currentTimeMillis())
+                .replyToId(request.getReplyToId())
+                .replyToContent(request.getReplyToContent())
+                .replyToSender(request.getReplyToSender())
+                .build();
 
-        if (chatMessage.getContent() != null) {
-            chatMessage.setContent(sanitizeInput(chatMessage.getContent()));
+        String savedId = chatService.saveIfPersistable(response);
+        if (savedId != null) {
+            response.setId(savedId);
         }
-
-        chatMessage.setTimestamp(System.currentTimeMillis());
-        String savedId = chatService.saveIfPersistable(chatMessage);
-        if (savedId != null)
-            chatMessage.setId(savedId);
-        return chatMessage;
+        return response;
     }
 
     @MessageMapping("/chat.addUser")
     @SendTo("/topic/public")
-    public Entity addUser(@Payload @Valid Entity chatMessage, SimpMessageHeaderAccessor headerAccessor) {
-        log.info("User joined: {}", chatMessage.getSender());
+    public ChatMessageResponse addUser(@Payload @Valid UserJoinRequest request,
+            SimpMessageHeaderAccessor headerAccessor) {
+        log.info("User joined: {}", request.getSender());
 
-        // Store username in session
         var sessionAttributes = headerAccessor.getSessionAttributes();
         if (sessionAttributes != null) {
-            sessionAttributes.put("username", chatMessage.getSender());
+            sessionAttributes.put("username", request.getSender());
         }
-        chatMessage.setTimestamp(System.currentTimeMillis());
-        return chatMessage;
+
+        return ChatMessageResponse.builder()
+                .type(request.getType())
+                .sender(request.getSender())
+                .timestamp(System.currentTimeMillis())
+                .build();
     }
 
     @MessageMapping("/chat.typing")
-    public void handleTyping(@Payload @Valid Entity chatMessage) {
-        log.debug("User typing: {} in conversation: {}", chatMessage.getSender(), chatMessage.getConversationId());
+    public void handleTyping(@Payload @Valid TypingRequest request) {
+        log.debug("User typing: {} in conversation: {}", request.getSender(), request.getConversationId());
 
-        // If conversationId is provided, send to the other participant in 1:1 chat
-        if (chatMessage.getConversationId() != null) {
-            String convId = chatMessage.getConversationId();
-            String sender = chatMessage.getSender();
+        ChatMessageResponse response = ChatMessageResponse.builder()
+                .type(MessageType.TYPING)
+                .sender(request.getSender())
+                .conversationId(request.getConversationId())
+                .timestamp(System.currentTimeMillis())
+                .build();
 
-            // Find the conversation and get other participant
+        if (request.getConversationId() != null) {
+            String convId = request.getConversationId();
+            String sender = request.getSender();
+
             conversationService.listForUser(sender).stream()
                     .filter(c -> c.getId().equals(convId))
                     .findFirst()
                     .ifPresent(conv -> {
                         String otherMobile = conv.getOtherParticipant(sender);
-                        chatMessage.setTimestamp(System.currentTimeMillis());
-                        messagingTemplate.convertAndSendToUser(otherMobile, "/queue/messages", chatMessage);
+                        messagingTemplate.convertAndSendToUser(otherMobile, "/queue/messages", response);
                     });
         } else {
-            // Legacy: broadcast to public topic for old chat room
-            messagingTemplate.convertAndSend("/topic/public", chatMessage);
+            messagingTemplate.convertAndSend("/topic/public", response);
         }
     }
 
     @MessageMapping("/chat.read")
-    public void handleReadReceipt(@Payload @Valid Entity chatMessage) {
-        log.debug("Read receipt from: {} in conversation: {}", chatMessage.getSender(),
-                chatMessage.getConversationId());
+    public void handleReadReceipt(@Payload @Valid ReadReceiptRequest request) {
+        log.debug("Read receipt from: {} in conversation: {}", request.getSender(), request.getConversationId());
 
-        if (chatMessage.getConversationId() != null) {
-            String convId = chatMessage.getConversationId();
-            String sender = chatMessage.getSender();
+        String convId = request.getConversationId();
+        String sender = request.getSender();
 
-            // Persist read status to database
-            var updatedConv = conversationService.markAsRead(convId, sender);
-            if (updatedConv == null)
-                return;
+        var updatedConv = conversationService.markAsRead(convId, sender);
+        if (updatedConv == null)
+            return;
 
-            // Notify the other participant in real-time
-            String otherMobile = updatedConv.getOtherParticipant(sender);
-            if (otherMobile != null) {
-                chatMessage.setType(Entity.MessageType.READ);
-                chatMessage.setTimestamp(System.currentTimeMillis());
-                messagingTemplate.convertAndSendToUser(otherMobile, "/queue/messages", chatMessage);
-            }
+        String otherMobile = updatedConv.getOtherParticipant(sender);
+        if (otherMobile != null) {
+            ChatMessageResponse response = ChatMessageResponse.builder()
+                    .type(MessageType.READ)
+                    .sender(sender)
+                    .conversationId(convId)
+                    .timestamp(System.currentTimeMillis())
+                    .build();
+            messagingTemplate.convertAndSendToUser(otherMobile, "/queue/messages", response);
         }
     }
 
     @MessageMapping("/chat.sendFile")
     @SendTo("/topic/public")
-    public Entity sendFile(@Payload @Valid Entity chatMessage) {
-        log.error("File shared by {}: {}", chatMessage.getSender(), chatMessage.getFileType());
-        chatMessage.setTimestamp(System.currentTimeMillis());
-        String savedId = chatService.saveIfPersistable(chatMessage);
-        if (savedId != null)
-            chatMessage.setId(savedId);
-        return chatMessage;
-    }
+    public ChatMessageResponse sendFile(@Payload @Valid FileMessageRequest request) {
+        log.info("File shared by {}: {}", request.getSender(), request.getFileType());
 
-    private String sanitizeInput(String input) {
-        if (input == null)
-            return null;
-        return input.replaceAll("<", "&lt;")
-                .replaceAll(">", "&gt;")
-                .replaceAll("\"", "&quot;")
-                .replaceAll("'", "&#x27;")
-                .replaceAll("/", "&#x2F;");
+        ChatMessageResponse response = ChatMessageResponse.builder()
+                .type(request.getType())
+                .sender(request.getSender())
+                .conversationId(request.getConversationId())
+                .fileContent(request.getFileContent())
+                .fileType(request.getFileType())
+                .timestamp(System.currentTimeMillis())
+                .build();
+
+        String savedId = chatService.saveIfPersistable(response);
+        if (savedId != null) {
+            response.setId(savedId);
+        }
+        return response;
     }
 }

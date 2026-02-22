@@ -1,5 +1,6 @@
 package com.example.ChatBot.controller;
 
+import com.example.ChatBot.dto.user.*;
 import com.example.ChatBot.model.UserDocument;
 import com.example.ChatBot.service.JwtService;
 import com.example.ChatBot.service.PresenceService;
@@ -7,8 +8,8 @@ import com.example.ChatBot.service.UserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.validation.Valid;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -31,7 +32,7 @@ public class UserController {
      * With query ?mobile=xxx also supported (for backward compatibility).
      */
     @GetMapping("/me")
-    public ResponseEntity<UserDocument> me(
+    public ResponseEntity<UserResponse> me(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestParam(required = false) String mobile) {
         String resolvedMobile = null;
@@ -43,7 +44,7 @@ public class UserController {
         if (resolvedMobile == null)
             return ResponseEntity.status(401).build();
         UserDocument user = userService.findByMobile(resolvedMobile);
-        return user != null ? ResponseEntity.ok(user) : ResponseEntity.notFound().build();
+        return user != null ? ResponseEntity.ok(UserResponse.from(user)) : ResponseEntity.notFound().build();
     }
 
     /**
@@ -60,13 +61,12 @@ public class UserController {
      * Update user's display name.
      */
     @PutMapping("/profile")
-    public ResponseEntity<UserDocument> updateProfile(
+    public ResponseEntity<UserResponse> updateProfile(
             @RequestParam String mobile,
-            @RequestBody Map<String, String> body) {
+            @Valid @RequestBody UpdateDisplayNameRequest request) {
         try {
-            String displayName = body.get("displayName");
-            UserDocument user = userService.updateDisplayName(mobile, displayName);
-            return ResponseEntity.ok(user);
+            UserDocument user = userService.updateDisplayName(mobile, request.getDisplayName());
+            return ResponseEntity.ok(UserResponse.from(user));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().build();
         }
@@ -79,10 +79,9 @@ public class UserController {
     @PutMapping("/profile/picture")
     public ResponseEntity<Void> updateProfilePicture(
             @RequestParam String mobile,
-            @RequestBody Map<String, String> body) {
+            @Valid @RequestBody UpdateProfilePictureRequest request) {
         try {
-            String picture = body.get("picture");
-            userService.updateProfilePicture(mobile, picture);
+            userService.updateProfilePicture(mobile, request.getPicture());
             return ResponseEntity.ok().build();
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().build();
@@ -94,9 +93,9 @@ public class UserController {
      * Get user's profile picture.
      */
     @GetMapping("/profile/picture")
-    public ResponseEntity<Map<String, String>> getProfilePicture(@RequestParam String mobile) {
+    public ResponseEntity<ProfilePictureResponse> getProfilePicture(@RequestParam String mobile) {
         String picture = userService.getProfilePicture(mobile);
-        return ResponseEntity.ok(Map.of("picture", picture != null ? picture : ""));
+        return ResponseEntity.ok(new ProfilePictureResponse(picture != null ? picture : ""));
     }
 
     /**
@@ -104,13 +103,12 @@ public class UserController {
      * Update user's bio.
      */
     @PutMapping("/profile/bio")
-    public ResponseEntity<UserDocument> updateBio(
+    public ResponseEntity<UserResponse> updateBio(
             @RequestParam String mobile,
-            @RequestBody Map<String, String> body) {
+            @Valid @RequestBody UpdateBioRequest request) {
         try {
-            String bio = body.get("bio");
-            UserDocument user = userService.updateBio(mobile, bio);
-            return ResponseEntity.ok(user);
+            UserDocument user = userService.updateBio(mobile, request.getBio());
+            return ResponseEntity.ok(UserResponse.from(user));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().build();
         }
@@ -121,9 +119,9 @@ public class UserController {
      * Get user's bio.
      */
     @GetMapping("/profile/bio")
-    public ResponseEntity<Map<String, String>> getBio(@RequestParam String mobile) {
+    public ResponseEntity<BioResponse> getBio(@RequestParam String mobile) {
         String bio = userService.getBio(mobile);
-        return ResponseEntity.ok(Map.of("bio", bio != null ? bio : ""));
+        return ResponseEntity.ok(new BioResponse(bio != null ? bio : ""));
     }
 
     /**
@@ -131,15 +129,11 @@ public class UserController {
      * Get any user's public profile (name, bio, picture).
      */
     @GetMapping("/profile/{mobile}")
-    public ResponseEntity<Map<String, Object>> getPublicProfile(@PathVariable String mobile) {
+    public ResponseEntity<UserProfileResponse> getPublicProfile(@PathVariable String mobile) {
         UserDocument user = userService.findByMobile(mobile);
         if (user == null) {
             return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.ok(Map.of(
-                "mobile", user.getMobile(),
-                "displayName", user.getDisplayName() != null ? user.getDisplayName() : user.getMobile(),
-                "bio", user.getBio() != null ? user.getBio() : "",
-                "profilePicture", user.getProfilePicture() != null ? user.getProfilePicture() : ""));
+        return ResponseEntity.ok(UserProfileResponse.from(user));
     }
 }

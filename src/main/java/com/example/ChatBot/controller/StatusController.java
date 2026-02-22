@@ -1,5 +1,8 @@
 package com.example.ChatBot.controller;
 
+import com.example.ChatBot.dto.status.CreateStatusRequest;
+import com.example.ChatBot.dto.status.StatusResponse;
+import com.example.ChatBot.dto.status.UserStatusesResponse;
 import com.example.ChatBot.model.StatusDocument;
 import com.example.ChatBot.model.UserDocument;
 import com.example.ChatBot.repository.StatusRepository;
@@ -7,6 +10,7 @@ import com.example.ChatBot.service.UserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.validation.Valid;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -27,29 +31,26 @@ public class StatusController {
      * Create a new status (text and/or image).
      */
     @PostMapping
-    public ResponseEntity<StatusDocument> createStatus(
+    public ResponseEntity<StatusResponse> createStatus(
             @RequestParam String mobile,
-            @RequestBody Map<String, String> body) {
+            @Valid @RequestBody CreateStatusRequest request) {
 
-        String content = body.get("content");
-        String imageBase64 = body.get("imageBase64");
-        String imageType = body.get("imageType");
-
-        if ((content == null || content.isBlank()) && (imageBase64 == null || imageBase64.isBlank())) {
+        if ((request.getContent() == null || request.getContent().isBlank())
+                && (request.getImageBase64() == null || request.getImageBase64().isBlank())) {
             return ResponseEntity.badRequest().build();
         }
 
         UserDocument user = userService.findByMobile(mobile);
         String userName = user != null && user.getDisplayName() != null ? user.getDisplayName() : mobile;
 
-        StatusDocument status = new StatusDocument(mobile, userName, content);
-        if (imageBase64 != null && !imageBase64.isBlank()) {
-            status.setImageBase64(imageBase64);
-            status.setImageType(imageType);
+        StatusDocument status = new StatusDocument(mobile, userName, request.getContent());
+        if (request.getImageBase64() != null && !request.getImageBase64().isBlank()) {
+            status.setImageBase64(request.getImageBase64());
+            status.setImageType(request.getImageType());
         }
 
         StatusDocument saved = statusRepository.save(status);
-        return ResponseEntity.ok(saved);
+        return ResponseEntity.ok(StatusResponse.from(saved));
     }
 
     /**
@@ -57,7 +58,7 @@ public class StatusController {
      * Get all active statuses grouped by user.
      */
     @GetMapping
-    public ResponseEntity<List<Map<String, Object>>> getAllStatuses(@RequestParam String mobile) {
+    public ResponseEntity<List<UserStatusesResponse>> getAllStatuses(@RequestParam String mobile) {
         long now = System.currentTimeMillis();
         List<StatusDocument> allStatuses = statusRepository.findByExpiresAtGreaterThanOrderByCreatedAtDesc(now);
 
@@ -65,23 +66,15 @@ public class StatusController {
         Map<String, List<StatusDocument>> byUser = allStatuses.stream()
                 .collect(Collectors.groupingBy(StatusDocument::getUserMobile));
 
-        List<Map<String, Object>> result = new ArrayList<>();
-        for (Map.Entry<String, List<StatusDocument>> entry : byUser.entrySet()) {
-            Map<String, Object> userStatuses = new HashMap<>();
-            userStatuses.put("userMobile", entry.getKey());
-            userStatuses.put("userName", entry.getValue().get(0).getUserName());
-            userStatuses.put("statuses", entry.getValue());
-            userStatuses.put("isOwn", entry.getKey().equals(mobile));
-            result.add(userStatuses);
-        }
+        List<UserStatusesResponse> result = byUser.entrySet().stream()
+                .map(entry -> UserStatusesResponse.from(entry.getKey(), entry.getValue(), mobile))
+                .collect(Collectors.toList());
 
         // Sort to show own statuses first
         result.sort((a, b) -> {
-            boolean aOwn = (boolean) a.get("isOwn");
-            boolean bOwn = (boolean) b.get("isOwn");
-            if (aOwn && !bOwn)
+            if (a.isOwn() && !b.isOwn())
                 return -1;
-            if (!aOwn && bOwn)
+            if (!a.isOwn() && b.isOwn())
                 return 1;
             return 0;
         });
@@ -94,9 +87,13 @@ public class StatusController {
      * Get my active statuses.
      */
     @GetMapping("/my")
-    public ResponseEntity<List<StatusDocument>> getMyStatuses(@RequestParam String mobile) {
+    public ResponseEntity<List<StatusResponse>> getMyStatuses(@RequestParam String mobile) {
         long now = System.currentTimeMillis();
-        List<StatusDocument> myStatuses = statusRepository.findByUserMobileAndExpiresAtGreaterThan(mobile, now);
+        List<StatusResponse> myStatuses = statusRepository
+                .findByUserMobileAndExpiresAtGreaterThan(mobile, now)
+                .stream()
+                .map(StatusResponse::from)
+                .collect(Collectors.toList());
         return ResponseEntity.ok(myStatuses);
     }
 

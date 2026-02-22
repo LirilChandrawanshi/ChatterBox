@@ -1,18 +1,23 @@
 package com.example.ChatBot.controller;
 
+import com.example.ChatBot.dto.chat.ChatMessageResponse;
+import com.example.ChatBot.dto.chat.ConversationResponse;
+import com.example.ChatBot.dto.chat.CreateConversationRequest;
+import com.example.ChatBot.dto.chat.SendMessageRequest;
 import com.example.ChatBot.model.ConversationDocument;
-import com.example.ChatBot.model.Entity;
 import com.example.ChatBot.model.GroupDocument;
+import com.example.ChatBot.model.MessageType;
 import com.example.ChatBot.model.UserDocument;
 import com.example.ChatBot.service.ChatService;
 import com.example.ChatBot.service.ConversationService;
 import com.example.ChatBot.service.GroupService;
 import com.example.ChatBot.service.UserService;
+import com.example.ChatBot.util.InputSanitizer;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
+import javax.validation.Valid;
 import java.util.List;
 import java.util.Map;
 
@@ -42,65 +47,61 @@ public class ConversationController {
      * OPTIMIZED: Uses batch user lookup to avoid N+1 queries.
      */
     @GetMapping
-    public ResponseEntity<List<Map<String, Object>>> list(@RequestParam String mobile) {
+    public ResponseEntity<List<ConversationResponse>> list(@RequestParam String mobile) {
         List<ConversationDocument> list = conversationService.listForUser(mobile);
 
-        // Collect all other participant mobiles for batch lookup
         List<String> otherMobiles = list.stream()
                 .map(conv -> conv.getOtherParticipant(mobile))
                 .distinct()
                 .toList();
 
-        // Single lightweight DB query (mobile + displayName only, no profilePicture)
         Map<String, String> displayNameMap = userService.findDisplayNamesByMobiles(otherMobiles);
 
-        // Build response using cached display names - O(1) lookups
-        List<Map<String, Object>> result = list.stream().map(conv -> {
-            Map<String, Object> map = new HashMap<>();
-            map.put("id", conv.getId());
-            map.put("participant1", conv.getParticipant1());
-            map.put("participant2", conv.getParticipant2());
-            map.put("lastMessageAt", conv.getLastMessageAt());
-            map.put("lastMessagePreview", conv.getLastMessagePreview());
+        List<ConversationResponse> result = list.stream().map(conv -> {
             String otherMobile = conv.getOtherParticipant(mobile);
-            map.put("otherParticipantMobile", otherMobile);
-            map.put("otherParticipantName", displayNameMap.getOrDefault(otherMobile, otherMobile));
-            return map;
+            return ConversationResponse.builder()
+                    .id(conv.getId())
+                    .participant1(conv.getParticipant1())
+                    .participant2(conv.getParticipant2())
+                    .lastMessageAt(conv.getLastMessageAt())
+                    .lastMessagePreview(conv.getLastMessagePreview())
+                    .otherParticipantMobile(otherMobile)
+                    .otherParticipantName(displayNameMap.getOrDefault(otherMobile, otherMobile))
+                    .build();
         }).toList();
+
         return ResponseEntity.ok(result);
     }
 
     /**
      * POST /api/conversations?mobile=xxx
-     * Body: { "otherUserMobile": "+9876543210" }
      * Get or create conversation with the other user.
      */
     @PostMapping
-    public ResponseEntity<?> getOrCreate(@RequestParam String mobile, @RequestBody Map<String, String> body) {
-        String other = body != null ? body.get("otherUserMobile") : null;
-        if (other == null || other.isBlank()) {
-            return ResponseEntity.badRequest().build();
-        }
+    public ResponseEntity<?> getOrCreate(@RequestParam String mobile,
+            @RequestBody @Valid CreateConversationRequest request) {
+        String other = request.getOtherUserMobile();
 
-        // Check if other user exists in the database
         UserDocument otherUser = userService.findByMobile(other);
         if (otherUser == null) {
-            Map<String, String> error = new HashMap<>();
-            error.put("error", "User not found with mobile number: " + other);
-            return ResponseEntity.status(404).body(error);
+            return ResponseEntity.status(404)
+                    .body(Map.of("error", "User not found with mobile number: " + other));
         }
 
         ConversationDocument conv = conversationService.getOrCreate(mobile, other);
-        Map<String, Object> response = new HashMap<>();
-        response.put("id", conv.getId());
-        response.put("participant1", conv.getParticipant1());
-        response.put("participant2", conv.getParticipant2());
-        response.put("lastMessageAt", conv.getLastMessageAt());
-        response.put("lastMessagePreview", conv.getLastMessagePreview());
         String otherMobile = conv.getOtherParticipant(mobile);
-        response.put("otherParticipantMobile", otherMobile);
-        response.put("otherParticipantName",
-                otherUser.getDisplayName() != null ? otherUser.getDisplayName() : otherMobile);
+
+        ConversationResponse response = ConversationResponse.builder()
+                .id(conv.getId())
+                .participant1(conv.getParticipant1())
+                .participant2(conv.getParticipant2())
+                .lastMessageAt(conv.getLastMessageAt())
+                .lastMessagePreview(conv.getLastMessagePreview())
+                .otherParticipantMobile(otherMobile)
+                .otherParticipantName(
+                        otherUser.getDisplayName() != null ? otherUser.getDisplayName() : otherMobile)
+                .build();
+
         return ResponseEntity.ok(response);
     }
 
@@ -109,23 +110,25 @@ public class ConversationController {
      * Get conversation and other participant info.
      */
     @GetMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> get(@PathVariable String id, @RequestParam String mobile) {
+    public ResponseEntity<ConversationResponse> get(@PathVariable String id, @RequestParam String mobile) {
         return conversationService.listForUser(mobile).stream()
                 .filter(c -> c.getId().equals(id))
                 .findFirst()
                 .map(conv -> {
-                    Map<String, Object> map = new HashMap<>();
-                    map.put("id", conv.getId());
                     String otherMobile = conv.getOtherParticipant(mobile);
-                    map.put("otherParticipantMobile", otherMobile);
                     UserDocument other = userService.findByMobile(otherMobile);
-                    map.put("otherParticipantName",
-                            other != null ? other.getDisplayName() : otherMobile);
-                    map.put("lastMessageAt", conv.getLastMessageAt());
-                    map.put("lastMessagePreview", conv.getLastMessagePreview());
-                    // Include when the OTHER user last read (for showing blue ticks on my messages)
-                    map.put("otherLastReadAt", conv.getLastReadBy(otherMobile));
-                    return ResponseEntity.ok(map);
+
+                    ConversationResponse response = ConversationResponse.builder()
+                            .id(conv.getId())
+                            .otherParticipantMobile(otherMobile)
+                            .otherParticipantName(
+                                    other != null ? other.getDisplayName() : otherMobile)
+                            .lastMessageAt(conv.getLastMessageAt())
+                            .lastMessagePreview(conv.getLastMessagePreview())
+                            .otherLastReadAt(conv.getLastReadBy(otherMobile))
+                            .build();
+
+                    return ResponseEntity.ok(response);
                 })
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -135,12 +138,11 @@ public class ConversationController {
      * Messages for this conversation (oldest first).
      */
     @GetMapping("/{id}/messages")
-    public ResponseEntity<List<Entity>> getMessages(@PathVariable String id, @RequestParam String mobile,
-            @RequestParam(defaultValue = "50") int limit) {
+    public ResponseEntity<List<ChatMessageResponse>> getMessages(@PathVariable String id,
+            @RequestParam String mobile, @RequestParam(defaultValue = "50") int limit) {
         if (limit > 100)
             limit = 100;
 
-        // Efficient membership check - doesn't load all conversations
         boolean isConversationParticipant = conversationService.isUserParticipant(id, mobile);
         boolean isGroupMember = groupService.isUserMember(id, mobile);
 
@@ -148,31 +150,26 @@ public class ConversationController {
             return ResponseEntity.notFound().build();
         }
 
-        List<Entity> messages = chatService.getMessagesByConversationId(id, limit);
+        List<ChatMessageResponse> messages = chatService.getMessagesByConversationId(id, limit);
         return ResponseEntity.ok(messages);
     }
 
     /**
      * POST /api/conversations/:id/messages
-     * Body: { "content": "Hello" } for text, or { "fileContent": "base64...",
-     * "fileType": "image/jpeg" } for file/image.
      * Sends message and pushes to both participants via WebSocket.
      */
     @PostMapping("/{id}/messages")
-    public ResponseEntity<Entity> sendMessage(@PathVariable String id, @RequestParam String mobile,
-            @RequestBody Map<String, Object> body) {
+    public ResponseEntity<ChatMessageResponse> sendMessage(@PathVariable String id,
+            @RequestParam String mobile, @RequestBody @Valid SendMessageRequest request) {
 
-        // Check if this is a group or a conversation
         GroupDocument group = groupService.getGroup(id);
         ConversationDocument conv = null;
 
         if (group != null) {
-            // It's a group - verify user is a member
             if (!group.getMembers().contains(mobile)) {
                 return ResponseEntity.notFound().build();
             }
         } else {
-            // It's a conversation - verify user is a participant
             List<ConversationDocument> myConvs = conversationService.listForUser(mobile);
             conv = myConvs.stream().filter(c -> c.getId().equals(id)).findFirst().orElse(null);
             if (conv == null) {
@@ -180,61 +177,41 @@ public class ConversationController {
             }
         }
 
-        Entity message = new Entity();
-        message.setSender(mobile);
-        message.setConversationId(id);
-        message.setTimestamp(System.currentTimeMillis());
+        // Build the response message from the typed request DTO
+        boolean isFile = request.getFileContent() != null && !request.getFileContent().isBlank()
+                && request.getFileType() != null && !request.getFileType().isBlank();
 
-        String fileContent = body != null && body.get("fileContent") != null ? body.get("fileContent").toString()
-                : null;
-        String fileType = body != null && body.get("fileType") != null ? body.get("fileType").toString() : null;
-        String content = body != null && body.get("content") != null ? body.get("content").toString() : "";
-
-        if (fileContent != null && !fileContent.isBlank() && fileType != null && !fileType.isBlank()) {
-            message.setType(Entity.MessageType.FILE);
-            message.setFileContent(fileContent);
-            message.setFileType(fileType);
-            message.setContent("");
-        } else {
-            message.setType(Entity.MessageType.CHAT);
-            message.setContent(sanitize(content));
-        }
-
-        // Handle reply-to fields
-        String replyToId = body != null && body.get("replyToId") != null ? body.get("replyToId").toString() : null;
-        String replyToContent = body != null && body.get("replyToContent") != null
-                ? body.get("replyToContent").toString()
-                : null;
-        String replyToSender = body != null && body.get("replyToSender") != null ? body.get("replyToSender").toString()
-                : null;
-
-        if (replyToId != null && !replyToId.isBlank()) {
-            message.setReplyToId(replyToId);
-            message.setReplyToContent(replyToContent);
-            message.setReplyToSender(replyToSender);
-        }
+        ChatMessageResponse message = ChatMessageResponse.builder()
+                .sender(mobile)
+                .conversationId(id)
+                .timestamp(System.currentTimeMillis())
+                .type(isFile ? MessageType.FILE : MessageType.CHAT)
+                .content(isFile ? "" : InputSanitizer.sanitize(request.getContent()))
+                .fileContent(isFile ? request.getFileContent() : null)
+                .fileType(isFile ? request.getFileType() : null)
+                .replyToId(request.getReplyToId())
+                .replyToContent(request.getReplyToContent())
+                .replyToSender(request.getReplyToSender())
+                .build();
 
         String savedId = chatService.saveIfPersistable(message);
-        if (savedId != null)
+        if (savedId != null) {
             message.setId(savedId);
+        }
 
         // Send message to appropriate recipients
         if (group != null) {
-            // For groups, send to all members
             for (String memberMobile : group.getMembers()) {
                 messagingTemplate.convertAndSendToUser(memberMobile, "/queue/messages", message);
             }
-            // Update group's last message info
             group.setLastMessageAt(message.getTimestamp());
             group.setLastMessagePreview(message.getContent() != null && !message.getContent().isEmpty()
                     ? message.getContent()
                     : "[File]");
-            // Get sender's display name
             UserDocument sender = userService.findByMobile(mobile);
             group.setLastMessageSenderName(sender != null ? sender.getDisplayName() : mobile);
             groupService.save(group);
         } else {
-            // For 1:1 conversations
             String otherMobile = conv.getOtherParticipant(mobile);
             messagingTemplate.convertAndSendToUser(mobile, "/queue/messages", message);
             messagingTemplate.convertAndSendToUser(otherMobile, "/queue/messages", message);
@@ -251,15 +228,5 @@ public class ConversationController {
     public ResponseEntity<Void> deleteConversation(@PathVariable String id, @RequestParam String mobile) {
         boolean deleted = conversationService.deleteConversation(id, mobile);
         return deleted ? ResponseEntity.ok().build() : ResponseEntity.notFound().build();
-    }
-
-    private static String sanitize(String input) {
-        if (input == null)
-            return null;
-        return input.replaceAll("<", "&lt;")
-                .replaceAll(">", "&gt;")
-                .replaceAll("\"", "&quot;")
-                .replaceAll("'", "&#x27;")
-                .replaceAll("/", "&#x2F;");
     }
 }

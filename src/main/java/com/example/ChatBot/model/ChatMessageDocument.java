@@ -1,5 +1,6 @@
 package com.example.ChatBot.model;
 
+import com.example.ChatBot.dto.chat.ChatMessageResponse;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -17,7 +18,7 @@ public class ChatMessageDocument {
     @Indexed
     private String conversationId;
 
-    private Entity.MessageType type;
+    private MessageType type;
     private String content;
     private String sender;
     private String fileContent;
@@ -32,7 +33,7 @@ public class ChatMessageDocument {
     public ChatMessageDocument() {
     }
 
-    public ChatMessageDocument(String conversationId, Entity.MessageType type, String content, String sender,
+    public ChatMessageDocument(String conversationId, MessageType type, String content, String sender,
             String fileContent, String fileType, long timestamp) {
         this.conversationId = conversationId;
         this.type = type;
@@ -43,36 +44,44 @@ public class ChatMessageDocument {
         this.timestamp = timestamp;
     }
 
-    public static ChatMessageDocument fromEntity(Entity entity) {
+    /**
+     * Convert a ChatMessageResponse DTO into a persistable document.
+     */
+    public static ChatMessageDocument fromResponse(ChatMessageResponse response) {
         ChatMessageDocument doc = new ChatMessageDocument(
-                entity.getConversationId(),
-                entity.getType(),
-                entity.getContent(),
-                entity.getSender(),
-                entity.getFileContent(),
-                entity.getFileType(),
-                entity.getTimestamp());
-        doc.setReplyToId(entity.getReplyToId());
-        doc.setReplyToContent(entity.getReplyToContent());
-        doc.setReplyToSender(entity.getReplyToSender());
+                response.getConversationId(),
+                response.getType(),
+                response.getContent(),
+                response.getSender(),
+                response.getFileContent(),
+                response.getFileType(),
+                response.getTimestamp());
+        doc.setReplyToId(response.getReplyToId());
+        doc.setReplyToContent(response.getReplyToContent());
+        doc.setReplyToSender(response.getReplyToSender());
         return doc;
     }
 
-    public Entity toEntity() {
-        Entity entity = new Entity();
-        entity.setId(id);
-        entity.setConversationId(conversationId);
-        entity.setType(type);
-        entity.setContent(content);
-        entity.setSender(sender);
-        entity.setFileContent(fileContent);
-        entity.setFileType(fileType);
-        entity.setTimestamp(timestamp);
-        entity.setReplyToId(replyToId);
-        entity.setReplyToContent(replyToContent);
-        entity.setReplyToSender(replyToSender);
-        return entity;
+    /**
+     * Convert this document into a ChatMessageResponse DTO for API responses.
+     */
+    public ChatMessageResponse toResponse() {
+        return ChatMessageResponse.builder()
+                .id(id)
+                .conversationId(conversationId)
+                .type(type)
+                .content(content)
+                .sender(sender)
+                .fileContent(fileContent)
+                .fileType(fileType)
+                .timestamp(timestamp)
+                .replyToId(replyToId)
+                .replyToContent(replyToContent)
+                .replyToSender(replyToSender)
+                .build();
     }
+
+    // --- Getters & Setters ---
 
     public String getId() {
         return id;
@@ -82,11 +91,11 @@ public class ChatMessageDocument {
         this.id = id;
     }
 
-    public Entity.MessageType getType() {
+    public MessageType getType() {
         return type;
     }
 
-    public void setType(Entity.MessageType type) {
+    public void setType(MessageType type) {
         this.type = type;
     }
 

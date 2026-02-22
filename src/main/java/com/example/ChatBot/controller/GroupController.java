@@ -1,46 +1,47 @@
 package com.example.ChatBot.controller;
 
+import com.example.ChatBot.dto.chat.CreateGroupRequest;
 import com.example.ChatBot.model.GroupDocument;
 import com.example.ChatBot.service.GroupService;
 import com.example.ChatBot.service.UserService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.validation.Valid;
+import java.util.HashSet;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 @RestController
 @RequestMapping("/api/groups")
 public class GroupController {
 
-    @Autowired
-    private GroupService groupService;
+    private final GroupService groupService;
+    private final UserService userService;
 
-    @Autowired
-    private UserService userService; // Optional validation
+    public GroupController(GroupService groupService, UserService userService) {
+        this.groupService = groupService;
+        this.userService = userService;
+    }
 
-    // Create a new group
+    /**
+     * POST /api/groups
+     * Create a new group.
+     */
     @PostMapping
-    public ResponseEntity<GroupDocument> createGroup(@RequestBody Map<String, Object> payload) {
-        String adminMobile = (String) payload.get("adminMobile");
-        String name = (String) payload.get("name");
-        String description = (String) payload.get("description");
-        List<String> memberList = (List<String>) payload.get("members");
+    public ResponseEntity<GroupDocument> createGroup(@RequestBody @Valid CreateGroupRequest request) {
+        java.util.Set<String> members = new HashSet<>(
+                request.getMembers() != null ? request.getMembers() : Collections.emptyList());
 
-        if (adminMobile == null || name == null) {
-            return ResponseEntity.badRequest().build();
-        }
-
-        Set<String> members = new java.util.HashSet<>(
-                memberList != null ? memberList : java.util.Collections.emptyList());
-
-        GroupDocument group = groupService.createGroup(name, description, adminMobile, members);
+        GroupDocument group = groupService.createGroup(
+                request.getName(), request.getDescription(), request.getAdminMobile(), members);
         return ResponseEntity.ok(group);
     }
 
-    // Get groups for a user
+    /**
+     * GET /api/groups?mobile=xxx
+     * Get groups for a user.
+     */
     @GetMapping
     public ResponseEntity<List<GroupDocument>> getMyGroups(@RequestParam String mobile) {
         if (mobile == null)
@@ -48,7 +49,10 @@ public class GroupController {
         return ResponseEntity.ok(groupService.getMyGroups(mobile));
     }
 
-    // Get group details
+    /**
+     * GET /api/groups/:id
+     * Get group details.
+     */
     @GetMapping("/{id}")
     public ResponseEntity<GroupDocument> getGroup(@PathVariable String id) {
         GroupDocument group = groupService.getGroup(id);

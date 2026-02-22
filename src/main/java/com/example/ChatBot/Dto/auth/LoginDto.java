@@ -1,4 +1,4 @@
-package com.example.ChatBot.Dto.auth;
+package com.example.ChatBot.dto.auth;
 
 import lombok.Data;
 import javax.validation.constraints.NotBlank;

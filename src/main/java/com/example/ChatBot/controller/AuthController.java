@@ -1,8 +1,8 @@
 package com.example.ChatBot.controller;
 
-import com.example.ChatBot.Dto.auth.AuthResponseDto;
-import com.example.ChatBot.Dto.auth.LoginDto;
-import com.example.ChatBot.Dto.auth.SignupRequestDto;
+import com.example.ChatBot.dto.auth.LoginDto;
+import com.example.ChatBot.dto.auth.AuthResponseDto;
+import com.example.ChatBot.dto.auth.SignupRequestDto;
 import com.example.ChatBot.model.UserDocument;
 import com.example.ChatBot.service.JwtService;
 import com.example.ChatBot.service.UserService;

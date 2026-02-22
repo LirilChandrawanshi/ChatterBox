@@ -36,6 +36,7 @@ export default function Chats() {
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [viewingProfile, setViewingProfile] = useState<string | null>(null);
   const [contactPics, setContactPics] = useState<Record<string, string>>({});
+  const fetchedPicsRef = useRef<Set<string>>(new Set());
 
   // Desktop detection - redirect to desktop view only on initial load
   useEffect(() => {
@@ -94,13 +95,14 @@ export default function Chats() {
     if (conversations.length === 0) return;
     const mobilesToFetch = conversations
       .map((conv) => conv.otherParticipantMobile ?? (conv.participant1 === myMobile ? conv.participant2 : conv.participant1))
-      .filter((m) => m && !contactPics[m]);
+      .filter((m) => m && !fetchedPicsRef.current.has(m));
 
     // Deduplicate
     const unique = Array.from(new Set(mobilesToFetch));
     if (unique.length === 0) return;
 
     unique.forEach((mobile) => {
+      fetchedPicsRef.current.add(mobile); // Mark as in-flight immediately
       getProfilePicture(mobile).then((pic) => {
         if (pic) {
           setContactPics((prev) => ({ ...prev, [mobile]: pic }));

@@ -1,6 +1,6 @@
 package com.example.ChatBot.controller;
 
-import com.example.ChatBot.model.Entity;
+import com.example.ChatBot.dto.chat.ChatMessageResponse;
 import com.example.ChatBot.model.MessagesDeletedEvent;
 import com.example.ChatBot.service.ChatService;
 import org.springframework.http.ResponseEntity;
@@ -32,17 +32,19 @@ public class MessageHistoryController {
      * Default limit is 50. Max 100.
      */
     @GetMapping("/messages")
-    public ResponseEntity<List<Entity>> getMessages(
+    public ResponseEntity<List<ChatMessageResponse>> getMessages(
             @RequestParam(defaultValue = "50") int limit) {
-        if (limit > 100) limit = 100;
-        List<Entity> messages = chatService.getRecentMessages(limit);
+        if (limit > 100)
+            limit = 100;
+        List<ChatMessageResponse> messages = chatService.getRecentMessages(limit);
         return ResponseEntity.ok(messages);
     }
 
     /**
      * DELETE /api/messages
      * Body: JSON array of message ids, e.g. ["id1", "id2"]
-     * Deletes the messages and broadcasts to all clients so they remove them from the UI.
+     * Deletes the messages and broadcasts to all clients so they remove them from
+     * the UI.
      */
     @DeleteMapping("/messages")
     public ResponseEntity<Void> deleteMessages(@RequestBody List<String> ids) {
