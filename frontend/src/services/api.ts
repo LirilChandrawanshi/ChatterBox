@@ -109,6 +109,20 @@ export async function login(
   return data as AuthResponse;
 }
 
+export async function googleLogin(idToken: string): Promise<AuthResponse> {
+  const res = await fetch(`${getBase()}/api/auth/google`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idToken }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok)
+    throw new Error(
+      (data as { error?: string }).error || "Google login failed",
+    );
+  return data as AuthResponse;
+}
+
 export async function register(
   mobile: string,
   displayName: string,

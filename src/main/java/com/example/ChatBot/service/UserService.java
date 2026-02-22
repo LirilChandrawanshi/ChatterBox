@@ -72,6 +72,45 @@ public class UserService {
     }
 
     /**
+     * Find or create a user from Google OAuth.
+     * Uses "google_{email}" as the mobile identifier for OAuth users.
+     */
+    public UserDocument findOrCreateGoogleUser(String email, String displayName, String pictureUrl) {
+        // Use email as a unique identifier in the mobile field
+        String googleMobile = "google_" + email.toLowerCase().trim();
+
+        return userRepository.findByMobile(googleMobile)
+                .map(existing -> {
+                    // Update display name and picture if changed
+                    boolean changed = false;
+                    if (displayName != null && !displayName.isBlank()
+                            && !displayName.equals(existing.getDisplayName())) {
+                        existing.setDisplayName(displayName.trim());
+                        changed = true;
+                    }
+                    if (pictureUrl != null && !pictureUrl.isBlank()
+                            && !pictureUrl.equals(existing.getProfilePicture())) {
+                        existing.setProfilePicture(pictureUrl);
+                        changed = true;
+                    }
+                    return changed ? userRepository.save(existing) : existing;
+                })
+                .orElseGet(() -> {
+                    UserDocument user = new UserDocument();
+                    user.setMobile(googleMobile);
+                    user.setDisplayName(displayName != null && !displayName.isBlank()
+                            ? displayName.trim()
+                            : email.split("@")[0]);
+                    user.setCreatedAt(System.currentTimeMillis());
+                    if (pictureUrl != null && !pictureUrl.isBlank()) {
+                        user.setProfilePicture(pictureUrl);
+                    }
+                    // No password for OAuth users
+                    return userRepository.save(user);
+                });
+    }
+
+    /**
      * Returns the total number of users in the database.
      */
     public long getTotalUserCount() {

@@ -37,6 +37,10 @@ public class UserDocument {
     public static String normalizeMobile(String mobile) {
         if (mobile == null)
             return null;
+        // Preserve OAuth identifiers (e.g. "google_user@email.com")
+        if (mobile.startsWith("google_")) {
+            return mobile.trim();
+        }
         return mobile.replaceAll("[^0-9]", "").trim();
     }
 

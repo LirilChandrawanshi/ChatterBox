@@ -34,6 +34,8 @@
 /Users/macbook/Desktop/OpenTalk/src/main/java/com/example/ChatBot/controller/UserController.java
 /Users/macbook/Desktop/OpenTalk/src/main/java/com/example/ChatBot/dto/community/AddCommentRequest.java
 /Users/macbook/Desktop/OpenTalk/src/main/java/com/example/ChatBot/dto/chat/FileMessageRequest.java
+/Users/macbook/Desktop/OpenTalk/src/main/java/com/example/ChatBot/dto/auth/GoogleAuthDto.java
+/Users/macbook/Desktop/OpenTalk/src/main/java/com/example/ChatBot/service/GoogleOAuthService.java
 /Users/macbook/Desktop/OpenTalk/src/main/java/com/example/ChatBot/repository/ConversationRepository.java
 /Users/macbook/Desktop/OpenTalk/src/main/java/com/example/ChatBot/repository/ChatMessageRepository.java
 /Users/macbook/Desktop/OpenTalk/src/main/java/com/example/ChatBot/controller/ChatBotController.java
@@ -44,6 +46,7 @@
 /Users/macbook/Desktop/OpenTalk/src/main/java/com/example/ChatBot/dto/chat/SendMessageRequest.java
 /Users/macbook/Desktop/OpenTalk/src/main/java/com/example/ChatBot/dto/chat/ChatMessageResponse.java
 /Users/macbook/Desktop/OpenTalk/src/main/java/com/example/ChatBot/service/ConversationService.java
+/Users/macbook/Desktop/OpenTalk/src/main/java/com/example/ChatBot/dto/user/UserCountResponse.java
 /Users/macbook/Desktop/OpenTalk/src/main/java/com/example/ChatBot/config/UserHandshakeHandler.java
 /Users/macbook/Desktop/OpenTalk/src/main/java/com/example/ChatBot/controller/SocketEventListener.java
 /Users/macbook/Desktop/OpenTalk/src/main/java/com/example/ChatBot/dto/user/UserResponse.java
