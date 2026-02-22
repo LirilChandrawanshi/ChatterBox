@@ -4,6 +4,7 @@ import Head from "next/head";
 import { ArrowLeft, Paperclip, Smile, Send, Check, CheckCheck, Trash2, Reply, X } from "lucide-react";
 import { wsService, type ChatMessage } from "@/services/websocket";
 import ProfileModal from "@/components/ProfileModal";
+import Loader from "@/components/Loader";
 import {
   getMessages,
   sendMessage as apiSendMessage,
@@ -25,6 +26,7 @@ export default function ConversationPage() {
   const convId = typeof conversationId === "string" ? conversationId : "";
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(true);
   const [inputMessage, setInputMessage] = useState("");
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(true);
@@ -155,9 +157,10 @@ export default function ConversationPage() {
         }
       }
     });
+    setLoadingMessages(true);
     getMessages(convId, myMobile).then((list) =>
       setMessages(list as ChatMessage[])
-    );
+    ).finally(() => setLoadingMessages(false));
     // Mark messages as read when opening chat (via WebSocket when connected)
   }, [router.isReady, myMobile, convId]);
 
@@ -436,7 +439,15 @@ export default function ConversationPage() {
           ref={messageAreaRef}
           className="flex-1 overflow-y-auto px-4 py-5 space-y-3 scrollbar-hide bg-[#0a0e12] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#0d1117] to-[#0a0e12]"
         >
-          {messages
+          {loadingMessages ? (
+            <div className="flex items-center justify-center h-full">
+              <Loader text="Loading messages..." />
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-[#8696a0] text-sm">No messages yet. Say hello! 👋</p>
+            </div>
+          ) : (messages
             .filter((m) => m.type === "CHAT" || m.type === "FILE")
             .map((msg, index) => {
               const isOwn = msg.sender === myMobile;
@@ -502,7 +513,8 @@ export default function ConversationPage() {
                   </div>
                 </div>
               );
-            })}
+            }))
+          }
         </div>
 
         {/* Emoji picker */}

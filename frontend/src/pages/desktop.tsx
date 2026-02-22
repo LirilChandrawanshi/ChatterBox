@@ -22,6 +22,7 @@ import { getStoredUser, setStoredUser } from "./index";
 import { wsService, type ChatMessage } from "@/services/websocket";
 import { getEmojiList } from "@/utils/emojis";
 import DesktopLayout from "@/components/DesktopLayout";
+import Loader from "@/components/Loader";
 import BottomNav from "@/components/BottomNav";
 import ProfileModal from "@/components/ProfileModal";
 import CreateGroupModal from "@/components/CreateGroupModal";
@@ -56,6 +57,7 @@ export default function DesktopChats() {
 
     // Chat view state
     const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [loadingMessages, setLoadingMessages] = useState(false);
     const [inputMessage, setInputMessage] = useState("");
     const [connected, setConnected] = useState(false);
     const [connecting, setConnecting] = useState(false);
@@ -111,14 +113,28 @@ export default function DesktopChats() {
             return;
         }
         // Load both conversations and groups initially
-        getConversations(myMobile).then(setConversations);
-        getMyGroups(myMobile).then(setGroups);
-        getOnlineMobiles().then((list) => setOnlineMobiles(new Set(list)));
+        const loadData = async () => {
+            try {
+                const [convs, grps, onlineList] = await Promise.all([
+                    getConversations(myMobile),
+                    getMyGroups(myMobile),
+                    getOnlineMobiles(),
+                ]);
+                setConversations(convs);
+                setGroups(grps);
+                setOnlineMobiles(new Set(onlineList));
+            } catch (error) {
+                console.error("Failed to load data:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadData();
+        // Load profile picture separately (non-blocking)
         getProfilePicture(myMobile).then((pic) => {
             if (pic) setProfilePicture(pic);
         }).catch(() => { });
         const t = setInterval(() => getOnlineMobiles().then((list) => setOnlineMobiles(new Set(list))), 10000);
-        setLoading(false);
         return () => clearInterval(t);
     }, [router.isReady, myMobile]);
 
@@ -240,9 +256,10 @@ export default function DesktopChats() {
             }
         }
 
+        setLoadingMessages(true);
         getMessages(selectedChatId, myMobile).then((list) =>
             setMessages(list as ChatMessage[])
-        );
+        ).finally(() => setLoadingMessages(false));
     }, [selectedChatId, myMobile]);
 
     // WebSocket connection
@@ -716,7 +733,7 @@ export default function DesktopChats() {
             {/* Chat list */}
             <div className="flex-1 overflow-y-auto">
                 {loading ? (
-                    <div className="p-4 text-[#8696a0] text-center text-sm">Loading…</div>
+                    <Loader text="Loading chats..." />
                 ) : filteredConversations.length === 0 && filteredGroups.length === 0 ? (
                     <div className="p-6 text-center">
                         <MessageCircle className="w-12 h-12 mx-auto text-[#8696a0]/30 mb-3" />
@@ -903,7 +920,15 @@ export default function DesktopChats() {
                 ref={messageAreaRef}
                 className="flex-1 overflow-y-auto px-6 py-4 space-y-3 bg-gradient-to-b from-transparent to-black/10"
             >
-                {messages
+                {loadingMessages ? (
+                    <div className="flex items-center justify-center h-full">
+                        <Loader text="Loading messages..." />
+                    </div>
+                ) : messages.length === 0 ? (
+                    <div className="flex items-center justify-center h-full">
+                        <p className="text-[#8696a0] text-sm">No messages yet. Start the conversation!</p>
+                    </div>
+                ) : (messages
                     .filter((m) => m.type === "CHAT" || m.type === "FILE")
                     .map((msg, index) => {
                         const isOwn = msg.sender === myMobile;
@@ -954,7 +979,8 @@ export default function DesktopChats() {
                                 </div>
                             </div>
                         );
-                    })}
+                    }))
+                }
             </div>
 
             {/* Emoji picker */}
