@@ -186,7 +186,7 @@ public class ConversationController {
                 .conversationId(id)
                 .timestamp(System.currentTimeMillis())
                 .type(isFile ? MessageType.FILE : MessageType.CHAT)
-                .content(isFile ? "" : InputSanitizer.sanitize(request.getContent()))
+                .content(isFile ? "" : (request.getContent() != null && (request.getContent().startsWith("__POLL__") || request.getContent().startsWith("__POLL_VOTE__") || request.getContent().startsWith("__CONTACT__") || request.getContent().startsWith("__EVENT__")) ? request.getContent() : InputSanitizer.sanitize(request.getContent())))
                 .fileContent(isFile ? request.getFileContent() : null)
                 .fileType(isFile ? request.getFileType() : null)
                 .replyToId(request.getReplyToId())

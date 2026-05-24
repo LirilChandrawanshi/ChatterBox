@@ -42,7 +42,7 @@ public class ChatBotController {
 
         ChatMessageResponse response = ChatMessageResponse.builder()
                 .type(request.getType())
-                .content(InputSanitizer.sanitize(request.getContent()))
+                .content(request.getContent() != null && (request.getContent().startsWith("__POLL__") || request.getContent().startsWith("__POLL_VOTE__") || request.getContent().startsWith("__CONTACT__") || request.getContent().startsWith("__EVENT__")) ? request.getContent() : InputSanitizer.sanitize(request.getContent()))
                 .sender(request.getSender())
                 .conversationId(request.getConversationId())
                 .timestamp(System.currentTimeMillis())
